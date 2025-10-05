@@ -1,11 +1,15 @@
-import { Menu, Bell, User } from "lucide-react";
+import { Menu, Bell, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface HeaderProps {
   onMenuClick: () => void;
 }
 
 const Header = ({ onMenuClick }: HeaderProps) => {
+  const { user, signOut } = useAuth();
+
   return (
     <header className="flex h-16 items-center justify-between border-b border-border bg-card px-6">
       <Button
@@ -25,8 +29,15 @@ const Header = ({ onMenuClick }: HeaderProps) => {
           <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-primary animate-glow-pulse" />
         </Button>
         
-        <Button variant="ghost" size="icon">
-          <User className="h-5 w-5" />
+        <Avatar className="h-8 w-8">
+          <AvatarFallback className="bg-gradient-primary text-white text-sm">
+            {user?.email?.[0].toUpperCase() || "U"}
+          </AvatarFallback>
+        </Avatar>
+
+        <Button variant="ghost" size="sm" onClick={signOut}>
+          <LogOut className="h-4 w-4 mr-2" />
+          Sign Out
         </Button>
       </div>
     </header>

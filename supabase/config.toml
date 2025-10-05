@@ -1,1 +1,10 @@
 project_id = "pouwjbferugzxpssgntj"
+
+[api]
+enabled = true
+
+[functions.validate-api-keys]
+verify_jwt = true
+
+[functions.generate-images]
+verify_jwt = true
