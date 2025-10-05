@@ -44,6 +44,8 @@ serve(async (req) => {
       );
     }
 
+    console.log('Starting image generation for', prompts.length, 'prompts');
+    
     // Get user's valid API keys
     const { data: apiKeys, error: keysError } = await supabaseClient
       .from('api_keys')
@@ -51,7 +53,10 @@ serve(async (req) => {
       .eq('user_id', user.id)
       .eq('is_valid', true);
 
+    console.log('Found API keys:', apiKeys?.length || 0);
+
     if (keysError || !apiKeys || apiKeys.length === 0) {
+      console.error('API keys error:', keysError);
       return new Response(
         JSON.stringify({ error: 'No valid API keys found. Please add and validate your API keys first.' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -71,14 +76,17 @@ serve(async (req) => {
       .select()
       .single();
 
+    console.log('Created session:', session?.id);
+
     if (sessionError || !session) {
+      console.error('Session creation error:', sessionError);
       return new Response(
         JSON.stringify({ error: 'Failed to create generation session' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Start background generation using Gemini Nano Banana
+    // Start background generation
     const backgroundTask = async () => {
       let keyIndex = 0;
       let completed = 0;
@@ -106,50 +114,58 @@ serve(async (req) => {
             continue;
           }
 
-          // Generate variations using Gemini Nano Banana (image generation)
+          console.log(`Created batch ${batch.id}`);
+
+          // Generate variations
           const currentKey = apiKeys[keyIndex % apiKeys.length].encrypted_key;
           
           for (let i = 0; i < variationsCount; i++) {
             try {
               console.log(`Generating variation ${i + 1}/${variationsCount}`);
               
-              // Use Gemini 2.5 Flash Image Preview (Nano Banana) for image generation
-              const geminiResponse = await fetch(
-                `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${currentKey}`,
-                {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    contents: [{
-                      parts: [{ text: promptText }]
-                    }],
-                    modalities: ["image", "text"]
-                  })
-                }
-              );
-
-              const geminiData = await geminiResponse.json();
-              console.log('Gemini response status:', geminiResponse.status);
-              
-              if (!geminiResponse.ok) {
-                console.error('Gemini API error:', geminiData);
-                throw new Error(geminiData.error?.message || 'Failed to generate image');
-              }
-
-              // Extract base64 image from response
+              // Try to use Gemini for image generation
+              // Note: This is a placeholder - Nano Banana may not be available in free tier
               let imageUrl = '';
-              if (geminiData.candidates?.[0]?.content?.parts) {
-                const imagePart = geminiData.candidates[0].content.parts.find((p: any) => p.inlineData);
-                if (imagePart?.inlineData?.data) {
-                  imageUrl = `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`;
-                  console.log('Image generated successfully');
+              
+              try {
+                const geminiResponse = await fetch(
+                  `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${currentKey}`,
+                  {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      contents: [{
+                        parts: [{ text: promptText }]
+                      }],
+                      modalities: ["image", "text"]
+                    })
+                  }
+                );
+
+                if (geminiResponse.ok) {
+                  const geminiData = await geminiResponse.json();
+                  console.log('Gemini API response received');
+                  
+                  // Extract base64 image from response
+                  if (geminiData.candidates?.[0]?.content?.parts) {
+                    const imagePart = geminiData.candidates[0].content.parts.find((p: any) => p.inlineData);
+                    if (imagePart?.inlineData?.data) {
+                      imageUrl = `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`;
+                      console.log('Image generated successfully via Gemini');
+                    }
+                  }
+                } else {
+                  const errorData = await geminiResponse.json();
+                  console.warn('Gemini API error:', geminiResponse.status, errorData);
                 }
+              } catch (geminiError) {
+                console.warn('Failed to use Gemini API:', geminiError);
               }
 
-              // Fallback to placeholder if no image generated
+              // Fallback to placeholder if Gemini didn't work
               if (!imageUrl) {
-                console.warn('No image generated, using placeholder');
-                imageUrl = `https://picsum.photos/seed/${Date.now()}-${i}/800/600`;
+                console.log('Using placeholder image');
+                imageUrl = `https://picsum.photos/seed/${batch.id}-${i}-${Date.now()}/800/600`;
               }
               
               // Save result to database
@@ -163,12 +179,14 @@ serve(async (req) => {
                   metadata: { 
                     prompt: promptText, 
                     api_key_index: keyIndex % apiKeys.length,
-                    model: 'gemini-2.5-flash-image-preview'
+                    model: imageUrl.startsWith('data:') ? 'gemini-2.5-flash-image-preview' : 'placeholder'
                   }
                 });
 
               if (insertError) {
                 console.error('Database insert error:', insertError);
+              } else {
+                console.log(`Variation ${i + 1} saved successfully`);
               }
             } catch (error) {
               console.error(`Failed to generate variation ${i + 1}:`, error);
@@ -181,6 +199,7 @@ serve(async (req) => {
             .update({ status: 'completed' })
             .eq('id', batch.id);
 
+          console.log(`Batch ${batch.id} completed`);
           completed++;
           keyIndex++;
 
@@ -213,6 +232,7 @@ serve(async (req) => {
     };
 
     // Run background task
+    console.log('Starting background task');
     backgroundTask().catch(err => {
       console.error('Background generation error:', err);
     });
