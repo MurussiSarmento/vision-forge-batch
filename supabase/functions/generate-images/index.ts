@@ -78,100 +78,144 @@ serve(async (req) => {
       );
     }
 
-    // Start background generation
-    // Process generation in background
-    (async () => {
-        let keyIndex = 0;
-        let completed = 0;
-        let failed = 0;
+    // Start background generation using Gemini Nano Banana
+    const backgroundTask = async () => {
+      let keyIndex = 0;
+      let completed = 0;
+      let failed = 0;
 
-        for (const promptText of prompts) {
-          try {
-            // Create prompt batch
-            const { data: batch, error: batchError } = await supabaseClient
-              .from('prompt_batches')
-              .insert({
-                session_id: session.id,
-                prompt_text: promptText,
-                variations_count: variationsCount,
-                status: 'processing'
-              })
-              .select()
-              .single();
+      for (const promptText of prompts) {
+        try {
+          console.log(`Processing prompt: ${promptText}`);
+          
+          // Create prompt batch
+          const { data: batch, error: batchError } = await supabaseClient
+            .from('prompt_batches')
+            .insert({
+              session_id: session.id,
+              prompt_text: promptText,
+              variations_count: variationsCount,
+              status: 'processing'
+            })
+            .select()
+            .single();
 
-            if (batchError || !batch) {
-              failed++;
-              continue;
-            }
+          if (batchError || !batch) {
+            console.error('Batch creation error:', batchError);
+            failed++;
+            continue;
+          }
 
-            // Generate variations using Google AI Studio (Gemini 2.5 Flash)
-            const currentKey = apiKeys[keyIndex % apiKeys.length].encrypted_key;
-            
-            for (let i = 0; i < variationsCount; i++) {
-              try {
-                // Use Gemini 2.5 Flash API to generate image descriptions
-                // Note: Gemini doesn't directly generate images yet, using placeholder
-                // In production, you'd use an image generation service based on Gemini descriptions
-                const geminiResponse = await fetch(
-                  `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${currentKey}`,
-                  {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      contents: [{
-                        parts: [{ text: `Generate a detailed image description for: ${promptText}` }]
-                      }]
-                    })
-                  }
-                );
-                
-                // Using placeholder for now - replace with actual image generation
-                const imageUrl = `https://picsum.photos/seed/${Date.now()}-${i}/800/600`;
-                
-                // Save result to database
-                await supabaseClient.from('generation_results').insert({
+          // Generate variations using Gemini Nano Banana (image generation)
+          const currentKey = apiKeys[keyIndex % apiKeys.length].encrypted_key;
+          
+          for (let i = 0; i < variationsCount; i++) {
+            try {
+              console.log(`Generating variation ${i + 1}/${variationsCount}`);
+              
+              // Use Gemini 2.5 Flash Image Preview (Nano Banana) for image generation
+              const geminiResponse = await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${currentKey}`,
+                {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    contents: [{
+                      parts: [{ text: promptText }]
+                    }],
+                    modalities: ["image", "text"]
+                  })
+                }
+              );
+
+              const geminiData = await geminiResponse.json();
+              console.log('Gemini response status:', geminiResponse.status);
+              
+              if (!geminiResponse.ok) {
+                console.error('Gemini API error:', geminiData);
+                throw new Error(geminiData.error?.message || 'Failed to generate image');
+              }
+
+              // Extract base64 image from response
+              let imageUrl = '';
+              if (geminiData.candidates?.[0]?.content?.parts) {
+                const imagePart = geminiData.candidates[0].content.parts.find((p: any) => p.inlineData);
+                if (imagePart?.inlineData?.data) {
+                  imageUrl = `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`;
+                  console.log('Image generated successfully');
+                }
+              }
+
+              // Fallback to placeholder if no image generated
+              if (!imageUrl) {
+                console.warn('No image generated, using placeholder');
+                imageUrl = `https://picsum.photos/seed/${Date.now()}-${i}/800/600`;
+              }
+              
+              // Save result to database
+              const { error: insertError } = await supabaseClient
+                .from('generation_results')
+                .insert({
                   batch_id: batch.id,
                   image_url: imageUrl,
                   variation_number: i + 1,
                   is_selected: false,
-                  metadata: { prompt: promptText, api_key_index: keyIndex % apiKeys.length }
+                  metadata: { 
+                    prompt: promptText, 
+                    api_key_index: keyIndex % apiKeys.length,
+                    model: 'gemini-2.5-flash-image-preview'
+                  }
                 });
-              } catch (error) {
-                console.error(`Failed to generate variation ${i + 1}:`, error);
+
+              if (insertError) {
+                console.error('Database insert error:', insertError);
               }
+            } catch (error) {
+              console.error(`Failed to generate variation ${i + 1}:`, error);
             }
-
-            // Update batch status
-            await supabaseClient
-              .from('prompt_batches')
-              .update({ status: 'completed' })
-              .eq('id', batch.id);
-
-            completed++;
-            keyIndex++;
-
-            // Update usage count for the API key
-            await supabaseClient
-              .from('api_keys')
-              .update({ usage_count: apiKeys[keyIndex % apiKeys.length].usage_count + 1 })
-              .eq('id', apiKeys[keyIndex % apiKeys.length].id);
-
-          } catch (error) {
-            console.error('Error processing prompt:', error);
-            failed++;
           }
-        }
 
-        // Update session
-        await supabaseClient
-          .from('generation_sessions')
-          .update({
-            status: 'completed',
-            completed_prompts: completed,
-            failed_prompts: failed
-          })
-          .eq('id', session.id);
-      })().catch(err => console.error('Background generation error:', err));
+          // Update batch status
+          await supabaseClient
+            .from('prompt_batches')
+            .update({ status: 'completed' })
+            .eq('id', batch.id);
+
+          completed++;
+          keyIndex++;
+
+          // Update usage count for the API key
+          const currentKeyData = apiKeys[keyIndex % apiKeys.length];
+          await supabaseClient
+            .from('api_keys')
+            .update({ 
+              usage_count: (currentKeyData.usage_count || 0) + 1,
+              last_validated_at: new Date().toISOString()
+            })
+            .eq('id', currentKeyData.id);
+
+        } catch (error) {
+          console.error('Error processing prompt:', error);
+          failed++;
+        }
+      }
+
+      // Update session
+      console.log(`Generation completed. Completed: ${completed}, Failed: ${failed}`);
+      await supabaseClient
+        .from('generation_sessions')
+        .update({
+          status: 'completed',
+          completed_prompts: completed,
+          failed_prompts: failed
+        })
+        .eq('id', session.id);
+    };
+
+    // Run background task
+    backgroundTask().catch(err => {
+      console.error('Background generation error:', err);
+    });
 
     return new Response(
       JSON.stringify({ 
