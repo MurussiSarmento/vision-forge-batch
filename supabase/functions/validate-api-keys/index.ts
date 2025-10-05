@@ -38,15 +38,15 @@ serve(async (req) => {
     const results = await Promise.all(
       apiKeys.map(async (key: string) => {
         try {
-          // Validate using Google AI Studio API (Gemini)
+          // Validate using Google AI Studio API (Gemini 2.5 Flash)
           const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${key}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
             {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 contents: [{
-                  parts: [{ text: "Test" }]
+                  parts: [{ text: "Hello" }]
                 }]
               })
             }

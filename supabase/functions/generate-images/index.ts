@@ -104,16 +104,16 @@ serve(async (req) => {
               continue;
             }
 
-            // Generate variations using Google AI Studio (Gemini)
+            // Generate variations using Google AI Studio (Gemini 2.5 Flash)
             const currentKey = apiKeys[keyIndex % apiKeys.length].encrypted_key;
             
             for (let i = 0; i < variationsCount; i++) {
               try {
-                // Use Gemini API to generate image descriptions
+                // Use Gemini 2.5 Flash API to generate image descriptions
                 // Note: Gemini doesn't directly generate images yet, using placeholder
                 // In production, you'd use an image generation service based on Gemini descriptions
                 const geminiResponse = await fetch(
-                  `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${currentKey}`,
+                  `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${currentKey}`,
                   {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
