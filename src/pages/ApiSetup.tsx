@@ -81,14 +81,15 @@ const ApiSetup = () => {
     <div className="container mx-auto p-6 max-w-4xl space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>API Key Setup</CardTitle>
+          <CardTitle>Configuração de API Keys</CardTitle>
           <CardDescription>
-            Enter your Google Cloud Vision API keys (one per line) to get started
+            Digite suas chaves de API do Google AI Studio (uma por linha) para começar.
+            Obtenha sua chave gratuita em: https://aistudio.google.com/app/apikey
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <Textarea
-            placeholder="Enter API keys here (one per line)"
+            placeholder="Cole suas chaves de API aqui (uma por linha)"
             value={apiKeys}
             onChange={(e) => setApiKeys(e.target.value)}
             rows={10}
@@ -98,10 +99,10 @@ const ApiSetup = () => {
             {validating ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Validating...
+                Validando...
               </>
             ) : (
-              "Validate API Keys"
+              "Validar Chaves de API"
             )}
           </Button>
         </CardContent>
@@ -110,7 +111,7 @@ const ApiSetup = () => {
       {results.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Validation Results</CardTitle>
+            <CardTitle>Resultados da Validação</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
@@ -135,7 +136,7 @@ const ApiSetup = () => {
             </div>
             {results.some((r) => r.valid) && (
               <Button onClick={continueToNextStep} className="w-full mt-4">
-                Continue to Prompt Batch
+                Continuar para Lote de Prompts
               </Button>
             )}
           </CardContent>

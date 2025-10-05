@@ -38,16 +38,15 @@ serve(async (req) => {
     const results = await Promise.all(
       apiKeys.map(async (key: string) => {
         try {
-          // Validate using Google Cloud Vision API
+          // Validate using Google AI Studio API (Gemini)
           const response = await fetch(
-            `https://vision.googleapis.com/v1/images:annotate?key=${key}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${key}`,
             {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                requests: [{
-                  image: { content: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==" },
-                  features: [{ type: "LABEL_DETECTION", maxResults: 1 }]
+                contents: [{
+                  parts: [{ text: "Test" }]
                 }]
               })
             }
@@ -60,14 +59,14 @@ serve(async (req) => {
             key: `${key.substring(0, 10)}...`,
             fullKey: key,
             valid: isValid,
-            message: isValid ? 'Valid API key' : data.error?.message || 'Invalid or expired key'
+            message: isValid ? 'Chave de API válida' : data.error?.message || 'Chave inválida ou expirada'
           };
         } catch (error) {
           return {
             key: `${key.substring(0, 10)}...`,
             fullKey: key,
             valid: false,
-            message: 'Failed to validate key'
+            message: 'Falha ao validar a chave'
           };
         }
       })

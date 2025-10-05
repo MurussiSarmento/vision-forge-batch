@@ -104,17 +104,28 @@ serve(async (req) => {
               continue;
             }
 
-            // Generate variations using Google Vision API (simplified example)
-            // In real implementation, you would use actual image generation API
+            // Generate variations using Google AI Studio (Gemini)
             const currentKey = apiKeys[keyIndex % apiKeys.length].encrypted_key;
             
             for (let i = 0; i < variationsCount; i++) {
               try {
-                // Note: Google Vision API is for image analysis, not generation
-                // This is a placeholder - you'd integrate with actual image generation API
-                // like DALL-E, Stable Diffusion, or Midjourney
+                // Use Gemini API to generate image descriptions
+                // Note: Gemini doesn't directly generate images yet, using placeholder
+                // In production, you'd use an image generation service based on Gemini descriptions
+                const geminiResponse = await fetch(
+                  `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${currentKey}`,
+                  {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      contents: [{
+                        parts: [{ text: `Generate a detailed image description for: ${promptText}` }]
+                      }]
+                    })
+                  }
+                );
                 
-                // For now, using a placeholder image service
+                // Using placeholder for now - replace with actual image generation
                 const imageUrl = `https://picsum.photos/seed/${Date.now()}-${i}/800/600`;
                 
                 // Save result to database
