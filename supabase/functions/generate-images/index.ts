@@ -35,7 +35,7 @@ serve(async (req) => {
       );
     }
 
-    const { prompts, variationsCount = 3 } = await req.json();
+    const { prompts, variationsCount = 3, referenceImageUrl } = await req.json();
 
     if (!prompts || !Array.isArray(prompts) || prompts.length === 0) {
       return new Response(
@@ -43,6 +43,8 @@ serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    console.log('Starting image generation with reference:', referenceImageUrl ? 'Yes' : 'No');
 
     console.log('Starting image generation for', prompts.length, 'prompts');
     
@@ -103,7 +105,8 @@ serve(async (req) => {
               session_id: session.id,
               prompt_text: promptText,
               variations_count: variationsCount,
-              status: 'processing'
+              status: 'processing',
+              reference_image_url: referenceImageUrl
             })
             .select()
             .single();
@@ -129,6 +132,26 @@ serve(async (req) => {
               try {
                 const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
                 
+                // Prepare message content
+                const messageContent: any[] = [
+                  { 
+                    type: 'text', 
+                    text: referenceImageUrl 
+                      ? `Generate an image based on this reference image and prompt: ${promptText}`
+                      : promptText
+                  }
+                ];
+
+                // Add reference image if provided
+                if (referenceImageUrl) {
+                  messageContent.push({
+                    type: 'image_url',
+                    image_url: {
+                      url: referenceImageUrl
+                    }
+                  });
+                }
+
                 const aiResponse = await fetch(
                   'https://ai.gateway.lovable.dev/v1/chat/completions',
                   {
@@ -141,7 +164,7 @@ serve(async (req) => {
                       model: 'google/gemini-2.5-flash-image-preview',
                       messages: [{
                         role: 'user',
-                        content: promptText
+                        content: messageContent
                       }],
                       modalities: ['image', 'text']
                     })

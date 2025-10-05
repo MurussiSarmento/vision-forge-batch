@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, Upload, X } from "lucide-react";
 
 const PromptBatch = () => {
   const navigate = useNavigate();
@@ -16,6 +16,68 @@ const PromptBatch = () => {
   const [prompts, setPrompts] = useState("");
   const [variationsCount, setVariationsCount] = useState(3);
   const [generating, setGenerating] = useState(false);
+  const [referenceImage, setReferenceImage] = useState<File | null>(null);
+  const [referenceImagePreview, setReferenceImagePreview] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error("Please upload an image file");
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image must be less than 5MB");
+      return;
+    }
+
+    setReferenceImage(file);
+    
+    // Create preview
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setReferenceImagePreview(e.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const removeReferenceImage = () => {
+    setReferenceImage(null);
+    setReferenceImagePreview(null);
+  };
+
+  const uploadReferenceImage = async (): Promise<string | null> => {
+    if (!referenceImage || !user) return null;
+
+    setUploadingImage(true);
+    try {
+      const fileExt = referenceImage.name.split('.').pop();
+      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+
+      const { error: uploadError, data } = await supabase.storage
+        .from('generated-images')
+        .upload(fileName, referenceImage);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('generated-images')
+        .getPublicUrl(fileName);
+
+      return publicUrl;
+    } catch (error) {
+      console.error("Error uploading image:", error);
+      toast.error("Failed to upload reference image");
+      return null;
+    } finally {
+      setUploadingImage(false);
+    }
+  };
 
   const startGeneration = async () => {
     if (!prompts.trim()) {
@@ -41,12 +103,23 @@ const PromptBatch = () => {
     setGenerating(true);
 
     try {
+      // Upload reference image if provided
+      let referenceImageUrl = null;
+      if (referenceImage) {
+        referenceImageUrl = await uploadReferenceImage();
+        if (!referenceImageUrl) {
+          setGenerating(false);
+          return;
+        }
+      }
+
       const { data: { session } } = await supabase.auth.getSession();
       
       const response = await supabase.functions.invoke("generate-images", {
         body: { 
           prompts: promptsArray,
-          variationsCount 
+          variationsCount,
+          referenceImageUrl 
         },
         headers: {
           Authorization: `Bearer ${session?.access_token}`,
@@ -68,17 +141,59 @@ const PromptBatch = () => {
     <div className="container mx-auto p-6 max-w-4xl">
       <Card>
         <CardHeader>
-          <CardTitle>Prompt Batch</CardTitle>
+          <CardTitle>Lote de Prompts</CardTitle>
           <CardDescription>
-            Enter your prompts (one per line) and specify how many variations you want for each
+            Digite seus prompts (um por linha) e especifique quantas variações você quer para cada
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
+            <Label htmlFor="reference">Imagem de Referência (Opcional)</Label>
+            {referenceImagePreview ? (
+              <div className="relative">
+                <img 
+                  src={referenceImagePreview} 
+                  alt="Reference" 
+                  className="w-full h-48 object-cover rounded-lg border"
+                />
+                <Button
+                  variant="destructive"
+                  size="icon"
+                  className="absolute top-2 right-2"
+                  onClick={removeReferenceImage}
+                  disabled={generating}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <label htmlFor="reference-upload" className="cursor-pointer">
+                <div className="border-2 border-dashed rounded-lg p-8 text-center hover:border-primary transition-colors">
+                  <Upload className="mx-auto h-12 w-12 text-muted-foreground mb-2" />
+                  <p className="text-sm text-muted-foreground">
+                    Clique para fazer upload de uma imagem de referência
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    PNG, JPG ou WEBP (max 5MB)
+                  </p>
+                </div>
+                <Input
+                  id="reference-upload"
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleImageUpload}
+                  disabled={generating}
+                />
+              </label>
+            )}
+          </div>
+
+          <div className="space-y-2">
             <Label htmlFor="prompts">Prompts</Label>
             <Textarea
               id="prompts"
-              placeholder="A beautiful sunset over mountains&#10;A futuristic city at night&#10;An underwater coral reef"
+              placeholder="Um pôr do sol lindo sobre as montanhas&#10;Uma cidade futurista à noite&#10;Um recife de coral submarino"
               value={prompts}
               onChange={(e) => setPrompts(e.target.value)}
               rows={10}
@@ -87,7 +202,7 @@ const PromptBatch = () => {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="variations">Variations per Prompt</Label>
+            <Label htmlFor="variations">Variações por Prompt</Label>
             <Input
               id="variations"
               type="number"
@@ -99,14 +214,18 @@ const PromptBatch = () => {
             />
           </div>
 
-          <Button onClick={startGeneration} disabled={generating} className="w-full">
-            {generating ? (
+          <Button 
+            onClick={startGeneration} 
+            disabled={generating || uploadingImage} 
+            className="w-full"
+          >
+            {generating || uploadingImage ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Starting Generation...
+                {uploadingImage ? "Enviando imagem..." : "Iniciando geração..."}
               </>
             ) : (
-              "Generate Images"
+              "Gerar Imagens"
             )}
           </Button>
         </CardContent>
