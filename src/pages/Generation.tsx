@@ -24,6 +24,39 @@ const Generation = () => {
     }
 
     setSessionId(id);
+    
+    // Fetch initial session state
+    const fetchInitialState = async () => {
+      const { data: session, error } = await supabase
+        .from('generation_sessions')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (error) {
+        console.error('Error fetching session:', error);
+        toast.error("Failed to load generation session");
+        navigate("/prompt-batch");
+        return;
+      }
+
+      if (session) {
+        const percentage = session.total_prompts > 0 
+          ? Math.round((session.completed_prompts / session.total_prompts) * 100)
+          : 0;
+        setProgress(percentage);
+        setStatus(`Processing: ${session.completed_prompts}/${session.total_prompts} prompts completed`);
+
+        if (session.status === 'completed') {
+          toast.success("Generation completed!");
+          setTimeout(() => {
+            navigate(`/results?sessionId=${id}`);
+          }, 1000);
+        }
+      }
+    };
+
+    fetchInitialState();
     monitorSession(id);
   }, [navigate]);
 

@@ -123,37 +123,29 @@ serve(async (req) => {
             try {
               console.log(`Generating variation ${i + 1}/${variationsCount}`);
               
-              // Try to use Gemini for image generation
-              // Note: This is a placeholder - Nano Banana may not be available in free tier
+              // Try to use Gemini for image generation (text-based generation only in free tier)
               let imageUrl = '';
               
               try {
+                // Note: Free tier doesn't support image generation, only text
+                // Using text generation for now, will fallback to placeholder
                 const geminiResponse = await fetch(
-                  `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${currentKey}`,
+                  `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${currentKey}`,
                   {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                       contents: [{
-                        parts: [{ text: promptText }]
-                      }],
-                      modalities: ["image", "text"]
+                        parts: [{ text: `Generate a creative description for: ${promptText}` }]
+                      }]
                     })
                   }
                 );
 
                 if (geminiResponse.ok) {
                   const geminiData = await geminiResponse.json();
-                  console.log('Gemini API response received');
-                  
-                  // Extract base64 image from response
-                  if (geminiData.candidates?.[0]?.content?.parts) {
-                    const imagePart = geminiData.candidates[0].content.parts.find((p: any) => p.inlineData);
-                    if (imagePart?.inlineData?.data) {
-                      imageUrl = `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`;
-                      console.log('Image generated successfully via Gemini');
-                    }
-                  }
+                  console.log('Gemini API response received (text only)');
+                  // For now, using placeholder since free tier doesn't support image generation
                 } else {
                   const errorData = await geminiResponse.json();
                   console.warn('Gemini API error:', geminiResponse.status, errorData);
@@ -162,11 +154,9 @@ serve(async (req) => {
                 console.warn('Failed to use Gemini API:', geminiError);
               }
 
-              // Fallback to placeholder if Gemini didn't work
-              if (!imageUrl) {
-                console.log('Using placeholder image');
-                imageUrl = `https://picsum.photos/seed/${batch.id}-${i}-${Date.now()}/800/600`;
-              }
+              // Using placeholder - Gemini free tier doesn't support image generation
+              console.log('Using placeholder image (Gemini free tier limitation)');
+              imageUrl = `https://picsum.photos/seed/${batch.id}-${i}-${Date.now()}/800/600`;
               
               // Save result to database
               const { error: insertError } = await supabaseClient
