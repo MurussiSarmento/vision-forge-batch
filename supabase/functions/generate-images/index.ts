@@ -123,40 +123,53 @@ serve(async (req) => {
             try {
               console.log(`Generating variation ${i + 1}/${variationsCount}`);
               
-              // Try to use Gemini for image generation (text-based generation only in free tier)
+              // Use Lovable AI Gateway with Gemini Nano Banana for image generation
               let imageUrl = '';
               
               try {
-                // Note: Free tier doesn't support image generation, only text
-                // Using text generation for now, will fallback to placeholder
-                const geminiResponse = await fetch(
-                  `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${currentKey}`,
+                const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+                
+                const aiResponse = await fetch(
+                  'https://ai.gateway.lovable.dev/v1/chat/completions',
                   {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${LOVABLE_API_KEY}`
+                    },
                     body: JSON.stringify({
-                      contents: [{
-                        parts: [{ text: `Generate a creative description for: ${promptText}` }]
-                      }]
+                      model: 'google/gemini-2.5-flash-image-preview',
+                      messages: [{
+                        role: 'user',
+                        content: promptText
+                      }],
+                      modalities: ['image', 'text']
                     })
                   }
                 );
 
-                if (geminiResponse.ok) {
-                  const geminiData = await geminiResponse.json();
-                  console.log('Gemini API response received (text only)');
-                  // For now, using placeholder since free tier doesn't support image generation
+                if (aiResponse.ok) {
+                  const aiData = await aiResponse.json();
+                  console.log('Lovable AI response received');
+                  
+                  // Extract base64 image from response
+                  if (aiData.choices?.[0]?.message?.images?.[0]?.image_url?.url) {
+                    imageUrl = aiData.choices[0].message.images[0].image_url.url;
+                    console.log('Image generated successfully via Lovable AI');
+                  }
                 } else {
-                  const errorData = await geminiResponse.json();
-                  console.warn('Gemini API error:', geminiResponse.status, errorData);
+                  const errorData = await aiResponse.json();
+                  console.warn('Lovable AI error:', aiResponse.status, errorData);
                 }
-              } catch (geminiError) {
-                console.warn('Failed to use Gemini API:', geminiError);
+              } catch (aiError) {
+                console.warn('Failed to use Lovable AI:', aiError);
               }
 
-              // Using placeholder - Gemini free tier doesn't support image generation
-              console.log('Using placeholder image (Gemini free tier limitation)');
-              imageUrl = `https://picsum.photos/seed/${batch.id}-${i}-${Date.now()}/800/600`;
+              // Fallback to placeholder if AI didn't work
+              if (!imageUrl) {
+                console.log('Using placeholder image (AI generation failed)');
+                imageUrl = `https://picsum.photos/seed/${batch.id}-${i}-${Date.now()}/800/600`;
+              }
               
               // Save result to database
               const { error: insertError } = await supabaseClient
