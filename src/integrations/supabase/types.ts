@@ -14,7 +14,181 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      api_keys: {
+        Row: {
+          created_at: string
+          encrypted_key: string
+          id: string
+          is_valid: boolean | null
+          key_name: string
+          last_validated_at: string | null
+          updated_at: string
+          usage_count: number | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          encrypted_key: string
+          id?: string
+          is_valid?: boolean | null
+          key_name: string
+          last_validated_at?: string | null
+          updated_at?: string
+          usage_count?: number | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          encrypted_key?: string
+          id?: string
+          is_valid?: boolean | null
+          key_name?: string
+          last_validated_at?: string | null
+          updated_at?: string
+          usage_count?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      generation_results: {
+        Row: {
+          batch_id: string
+          created_at: string
+          id: string
+          image_url: string
+          is_selected: boolean | null
+          metadata: Json | null
+          variation_number: number
+        }
+        Insert: {
+          batch_id: string
+          created_at?: string
+          id?: string
+          image_url: string
+          is_selected?: boolean | null
+          metadata?: Json | null
+          variation_number: number
+        }
+        Update: {
+          batch_id?: string
+          created_at?: string
+          id?: string
+          image_url?: string
+          is_selected?: boolean | null
+          metadata?: Json | null
+          variation_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "generation_results_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "prompt_batches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      generation_sessions: {
+        Row: {
+          completed_prompts: number | null
+          created_at: string
+          failed_prompts: number | null
+          id: string
+          status: string
+          total_prompts: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          completed_prompts?: number | null
+          created_at?: string
+          failed_prompts?: number | null
+          id?: string
+          status?: string
+          total_prompts?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          completed_prompts?: number | null
+          created_at?: string
+          failed_prompts?: number | null
+          id?: string
+          status?: string
+          total_prompts?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          email: string | null
+          full_name: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      prompt_batches: {
+        Row: {
+          created_at: string
+          id: string
+          prompt_text: string
+          reference_image_url: string | null
+          session_id: string
+          status: string
+          updated_at: string
+          variations_count: number | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          prompt_text: string
+          reference_image_url?: string | null
+          session_id: string
+          status?: string
+          updated_at?: string
+          variations_count?: number | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          prompt_text?: string
+          reference_image_url?: string | null
+          session_id?: string
+          status?: string
+          updated_at?: string
+          variations_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prompt_batches_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "generation_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
