@@ -35,7 +35,7 @@ serve(async (req) => {
       );
     }
 
-    const { prompts, variationsCount = 3, referenceImageUrl } = await req.json();
+    const { prompts, variationsCount = 3, referenceImageUrl, aspectRatio = '1:1' } = await req.json();
 
     if (!prompts || !Array.isArray(prompts) || prompts.length === 0) {
       return new Response(
@@ -134,13 +134,14 @@ serve(async (req) => {
               try {
                 const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
                 
-                // Prepare message content
+                // Prepare message content with aspect ratio instruction
+                const aspectRatioInstruction = aspectRatio !== '1:1' ? ` Create the image in ${aspectRatio} aspect ratio.` : '';
                 const messageContent: any[] = [
                   { 
                     type: 'text', 
                     text: referenceImageUrl 
-                      ? `Generate an image based on this reference image and prompt: ${promptText}`
-                      : promptText
+                      ? `Generate an image based on this reference image and prompt: ${promptText}${aspectRatioInstruction}`
+                      : `${promptText}${aspectRatioInstruction}`
                   }
                 ];
 

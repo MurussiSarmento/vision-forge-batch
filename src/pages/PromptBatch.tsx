@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Loader2, Upload, X } from "lucide-react";
 
@@ -15,6 +16,7 @@ const PromptBatch = () => {
   const { user } = useAuth();
   const [prompts, setPrompts] = useState("");
   const [variationsCount, setVariationsCount] = useState(3);
+  const [aspectRatio, setAspectRatio] = useState("1:1");
   const [generating, setGenerating] = useState(false);
   const [referenceImage, setReferenceImage] = useState<File | null>(null);
   const [referenceImagePreview, setReferenceImagePreview] = useState<string | null>(null);
@@ -119,7 +121,8 @@ const PromptBatch = () => {
         body: { 
           prompts: promptsArray,
           variationsCount,
-          referenceImageUrl 
+          referenceImageUrl,
+          aspectRatio
         },
         headers: {
           Authorization: `Bearer ${session?.access_token}`,
@@ -212,6 +215,22 @@ const PromptBatch = () => {
               onChange={(e) => setVariationsCount(parseInt(e.target.value))}
               disabled={generating}
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="aspect-ratio">Aspect Ratio</Label>
+            <Select value={aspectRatio} onValueChange={setAspectRatio} disabled={generating}>
+              <SelectTrigger id="aspect-ratio">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1:1">1:1 (Quadrado)</SelectItem>
+                <SelectItem value="16:9">16:9 (Paisagem)</SelectItem>
+                <SelectItem value="9:16">9:16 (Retrato)</SelectItem>
+                <SelectItem value="4:3">4:3 (Paisagem clássica)</SelectItem>
+                <SelectItem value="3:4">3:4 (Retrato clássico)</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <Button 
