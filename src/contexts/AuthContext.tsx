@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
+import { useToast } from "@/hooks/use-toast";
 
 interface AuthContextType {
   user: User | null;
@@ -30,6 +31,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const { toast } = useToast();
 
   useEffect(() => {
     // Set up auth state listener
@@ -72,7 +74,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
               if (roleError) console.error('Error assigning role:', roleError);
             }
 
-            // Check if account is suspended
+            // Check account status
             const { data: profile } = await supabase
               .from('profiles')
               .select('status')
@@ -81,7 +83,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
             if (profile?.status === 'suspended') {
               await supabase.auth.signOut();
-              alert('Sua conta foi suspensa. Entre em contato com o administrador.');
+              toast({
+                title: "Conta suspensa",
+                description: "Sua conta foi suspensa. Entre em contato com o administrador.",
+                variant: "destructive",
+              });
+              navigate("/auth");
+            } else if (profile?.status === 'pending') {
+              await supabase.auth.signOut();
+              toast({
+                title: "Aguardando aprovação",
+                description: "Sua conta está aguardando aprovação do administrador.",
+              });
+              navigate("/auth?pending=true");
             }
           }, 0);
         }

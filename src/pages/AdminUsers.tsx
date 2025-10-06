@@ -225,7 +225,11 @@ const AdminUsers = () => {
   };
 
   const handleToggleStatus = (userId: string, currentStatus: string) => {
-    const newStatus = currentStatus === "active" ? "suspended" : "active";
+    const newStatus = currentStatus === "active" 
+      ? "suspended" 
+      : currentStatus === "pending"
+      ? "active"
+      : "active";
     toggleStatusMutation.mutate({ userId, newStatus });
   };
 
@@ -302,8 +306,20 @@ const AdminUsers = () => {
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            <Badge variant={profile.status === "active" ? "default" : "destructive"}>
-                              {profile.status === "active" ? "Ativo" : "Suspenso"}
+                            <Badge 
+                              variant={
+                                profile.status === "active" 
+                                  ? "default" 
+                                  : profile.status === "pending"
+                                  ? "secondary"
+                                  : "destructive"
+                              }
+                            >
+                              {profile.status === "active" 
+                                ? "Ativo" 
+                                : profile.status === "pending"
+                                ? "Pendente"
+                                : "Suspenso"}
                             </Badge>
                           </TableCell>
                           <TableCell>
@@ -382,11 +398,16 @@ const AdminUsers = () => {
                             <Button
                               variant={profile.status === "active" ? "destructive" : "default"}
                               size="sm"
-                              onClick={() => handleToggleStatus(profile.id, profile.status)}
+                              onClick={() => handleToggleStatus(
+                                profile.id, 
+                                profile.status
+                              )}
                               disabled={toggleStatusMutation.isPending}
                             >
                               {profile.status === "active" ? (
                                 <UserX className="h-4 w-4" />
+                              ) : profile.status === "pending" ? (
+                                <UserCheck className="h-4 w-4" />
                               ) : (
                                 <UserCheck className="h-4 w-4" />
                               )}

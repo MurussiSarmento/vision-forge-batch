@@ -1,14 +1,17 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Sparkles, Zap } from "lucide-react";
+import { Loader2, Sparkles, Zap, Clock } from "lucide-react";
 
 const Auth = () => {
+  const [searchParams] = useSearchParams();
+  const isPending = searchParams.get('pending') === 'true';
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -146,11 +149,24 @@ const Auth = () => {
           </div>
           <h1 className="text-3xl font-bold text-foreground">VisionAI</h1>
           <p className="text-muted-foreground">
-            {isLogin ? "Sign in to your account" : "Create a new account"}
+            {isPending 
+              ? "Sua conta está sendo revisada" 
+              : isLogin ? "Sign in to your account" : "Create a new account"}
           </p>
         </div>
 
-        <form onSubmit={handleAuth} className="space-y-4">
+        {isPending ? (
+          <Alert>
+            <Clock className="h-4 w-4" />
+            <AlertTitle>Aguardando Aprovação</AlertTitle>
+            <AlertDescription>
+              Sua conta foi criada com sucesso e está aguardando aprovação do administrador. 
+              Você receberá uma notificação quando sua conta for aprovada.
+            </AlertDescription>
+          </Alert>
+        ) : (
+          <>
+            <form onSubmit={handleAuth} className="space-y-4">
           {!isLogin && (
             <div className="space-y-2">
               <Label htmlFor="fullName">Full Name</Label>
@@ -239,6 +255,8 @@ const Auth = () => {
               : "Already have an account? Sign in"}
           </button>
         </div>
+          </>
+        )}
       </Card>
     </div>
   );
