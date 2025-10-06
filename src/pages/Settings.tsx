@@ -1,140 +1,153 @@
-import { Card } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
+import { useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Slider } from "@/components/ui/slider";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { useToast } from "@/hooks/use-toast";
+import { Loader2, Key, User } from "lucide-react";
 
 const Settings = () => {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (newPassword !== confirmPassword) {
+      toast({
+        title: "Erro",
+        description: "As senhas não coincidem.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      toast({
+        title: "Erro",
+        description: "A senha deve ter no mínimo 6 caracteres.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsChangingPassword(true);
+
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Senha alterada",
+        description: "Sua senha foi alterada com sucesso.",
+      });
+
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (error: any) {
+      toast({
+        title: "Erro ao alterar senha",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="container max-w-4xl mx-auto p-6 space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-foreground">Settings</h1>
-        <p className="mt-2 text-muted-foreground">
-          Configure your generation preferences and account settings
+        <h1 className="text-3xl font-bold">Configurações</h1>
+        <p className="text-muted-foreground mt-1">
+          Gerencie suas preferências e segurança da conta
         </p>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card className="p-6">
-          <h3 className="mb-4 text-lg font-semibold text-foreground">
-            Generation Settings
-          </h3>
-          <div className="space-y-6">
-            <div className="space-y-2">
-              <Label>Images per Prompt</Label>
-              <Slider defaultValue={[3]} min={1} max={5} step={1} />
-              <p className="text-xs text-muted-foreground">
-                Number of variations to generate (1-5)
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Default Quality</Label>
-              <Slider defaultValue={[80]} min={50} max={100} step={10} />
-              <p className="text-xs text-muted-foreground">
-                Image quality percentage (50-100)
-              </p>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>Auto-start Generation</Label>
-                <p className="text-xs text-muted-foreground">
-                  Begin immediately after uploading prompts
-                </p>
-              </div>
-              <Switch />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>Email Notifications</Label>
-                <p className="text-xs text-muted-foreground">
-                  Notify when generation completes
-                </p>
-              </div>
-              <Switch defaultChecked />
-            </div>
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <User className="h-5 w-5 text-primary" />
+            <CardTitle>Informações da Conta</CardTitle>
           </div>
-        </Card>
-
-        <Card className="p-6">
-          <h3 className="mb-4 text-lg font-semibold text-foreground">
-            Account Settings
-          </h3>
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>Dark Mode</Label>
-                <p className="text-xs text-muted-foreground">
-                  Enable dark theme
-                </p>
-              </div>
-              <Switch defaultChecked />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>Auto-save Results</Label>
-                <p className="text-xs text-muted-foreground">
-                  Save all generated images automatically
-                </p>
-              </div>
-              <Switch defaultChecked />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>Usage Analytics</Label>
-                <p className="text-xs text-muted-foreground">
-                  Help improve our service
-                </p>
-              </div>
-              <Switch />
-            </div>
-
-            <div className="pt-4 border-t border-border">
-              <Button variant="destructive" className="w-full">
-                Delete Account
-              </Button>
-            </div>
+          <CardDescription>
+            Visualize as informações da sua conta
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label>Email</Label>
+            <Input value={user?.email || ""} disabled className="bg-muted" />
           </div>
-        </Card>
-      </div>
-
-      <Card className="p-6">
-        <h3 className="mb-4 text-lg font-semibold text-foreground">
-          Advanced Settings
-        </h3>
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <Label>Enable Rate Limiting</Label>
-              <p className="text-xs text-muted-foreground">
-                Automatically distribute requests across API keys
-              </p>
-            </div>
-            <Switch defaultChecked />
+          <div className="space-y-2">
+            <Label>ID do Usuário</Label>
+            <Input value={user?.id || ""} disabled className="bg-muted font-mono text-xs" />
           </div>
-
-          <div className="flex items-center justify-between">
-            <div>
-              <Label>Cache Generated Images</Label>
-              <p className="text-xs text-muted-foreground">
-                Store images locally for faster access
-              </p>
-            </div>
-            <Switch defaultChecked />
-          </div>
-        </div>
+        </CardContent>
       </Card>
 
-      <div className="flex justify-end gap-2">
-        <Button variant="outline">Reset to Defaults</Button>
-        <Button className="bg-gradient-primary hover:opacity-90">
-          Save Changes
-        </Button>
-      </div>
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Key className="h-5 w-5 text-primary" />
+            <CardTitle>Alterar Senha</CardTitle>
+          </div>
+          <CardDescription>
+            Atualize sua senha para manter sua conta segura
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handlePasswordChange} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="new-password">Nova Senha</Label>
+              <Input
+                id="new-password"
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Digite sua nova senha"
+                required
+                minLength={6}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="confirm-password">Confirmar Nova Senha</Label>
+              <Input
+                id="confirm-password"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Confirme sua nova senha"
+                required
+                minLength={6}
+              />
+            </div>
+
+            <Button
+              type="submit"
+              disabled={isChangingPassword}
+              className="w-full"
+            >
+              {isChangingPassword && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              Alterar Senha
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 };
