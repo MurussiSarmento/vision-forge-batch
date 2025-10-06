@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Sparkles, Zap, Clock } from "lucide-react";
+import { Loader2, Sparkles, Zap, Clock, Chrome } from "lucide-react";
 
 const Auth = () => {
   const [searchParams] = useSearchParams();
@@ -19,6 +19,27 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  const handleGoogleLogin = async () => {
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/`,
+        },
+      });
+
+      if (error) throw error;
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Erro",
+        description: error.message || "Erro ao autenticar com Google",
+      });
+      setLoading(false);
+    }
+  };
 
   const handleDummyLogin = async () => {
     setLoading(true);
@@ -232,6 +253,17 @@ const Auth = () => {
             <span className="bg-surface px-2 text-muted-foreground">Ou</span>
           </div>
         </div>
+
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full"
+          onClick={handleGoogleLogin}
+          disabled={loading}
+        >
+          <Chrome className="mr-2 h-4 w-4" />
+          Continuar com Google
+        </Button>
 
         <Button
           type="button"
