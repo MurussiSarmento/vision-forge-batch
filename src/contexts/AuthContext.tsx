@@ -39,10 +39,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setUser(session?.user ?? null);
         setLoading(false);
 
-        // Create profile if user signs up
+        // Create profile and assign default role if user signs up
         if (event === 'SIGNED_IN' && session?.user) {
           setTimeout(async () => {
-            const { error } = await supabase
+            // Upsert profile
+            const { error: profileError } = await supabase
               .from('profiles')
               .upsert({
                 id: session.user.id,
@@ -50,7 +51,38 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 full_name: session.user.user_metadata?.full_name || null,
               }, { onConflict: 'id' });
             
-            if (error) console.error('Error creating profile:', error);
+            if (profileError) console.error('Error creating profile:', profileError);
+
+            // Check if user already has a role
+            const { data: existingRole, error: roleCheckError } = await supabase
+              .from('user_roles')
+              .select('role')
+              .eq('user_id', session.user.id)
+              .single();
+
+            // If no role exists, assign default 'user' role
+            if (!existingRole && !roleCheckError) {
+              const { error: roleError } = await supabase
+                .from('user_roles')
+                .insert({
+                  user_id: session.user.id,
+                  role: 'user',
+                });
+
+              if (roleError) console.error('Error assigning role:', roleError);
+            }
+
+            // Check if account is suspended
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('status')
+              .eq('id', session.user.id)
+              .single();
+
+            if (profile?.status === 'suspended') {
+              await supabase.auth.signOut();
+              alert('Sua conta foi suspensa. Entre em contato com o administrador.');
+            }
           }, 0);
         }
       }

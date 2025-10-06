@@ -1,5 +1,7 @@
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
+import { useUserRole } from "@/hooks/useUserRole";
 import {
   Home,
   Key,
@@ -8,6 +10,8 @@ import {
   Images,
   History,
   Settings,
+  User,
+  Users,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -27,6 +31,8 @@ const navigation = [
 
 const Sidebar = ({ open, onClose }: SidebarProps) => {
   const location = useLocation();
+  const { user } = useAuth();
+  const { data: userRole } = useUserRole(user?.id);
 
   return (
     <>
@@ -74,6 +80,36 @@ const Sidebar = ({ open, onClose }: SidebarProps) => {
               </Link>
             );
           })}
+
+          <div className="my-4 border-t border-border" />
+
+          <Link
+            to="/profile"
+            className={cn(
+              "flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-all",
+              location.pathname === "/profile"
+                ? "bg-primary text-primary-foreground shadow-md"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            )}
+          >
+            <User className="h-5 w-5" />
+            Meu Perfil
+          </Link>
+
+          {userRole === "admin" && (
+            <Link
+              to="/admin/users"
+              className={cn(
+                "flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-all",
+                location.pathname === "/admin/users"
+                  ? "bg-primary text-primary-foreground shadow-md"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              )}
+            >
+              <Users className="h-5 w-5" />
+              Gerenciar Usuários
+            </Link>
+          )}
         </nav>
 
         <div className="border-t border-border p-4">

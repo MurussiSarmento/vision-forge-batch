@@ -53,6 +53,21 @@ serve(async (req) => {
         });
       } else {
         console.log(`User created successfully: ${user.email}`);
+        
+        // Assign default user role
+        if (data.user?.id) {
+          const { error: roleError } = await supabaseAdmin
+            .from("user_roles")
+            .insert({
+              user_id: data.user.id,
+              role: "user",
+            });
+
+          if (roleError) {
+            console.error(`Error assigning role to ${user.email}:`, roleError);
+          }
+        }
+        
         results.push({
           email: user.email,
           success: true,
