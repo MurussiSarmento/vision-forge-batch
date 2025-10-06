@@ -17,6 +17,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
+import { useState } from "react";
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -33,6 +34,12 @@ const Header = ({ onMenuClick }: HeaderProps) => {
     { id: 3, message: "API key validada", time: "2 horas atrás" },
   ];
 
+  const [hasUnreadNotifications, setHasUnreadNotifications] = useState(notifications.length > 0);
+
+  const handleOpenNotifications = () => {
+    setHasUnreadNotifications(false);
+  };
+
   return (
     <header className="flex h-16 items-center justify-between border-b border-border bg-card px-6">
       <Button
@@ -48,16 +55,18 @@ const Header = ({ onMenuClick }: HeaderProps) => {
 
       <div className="flex items-center gap-2">
         {/* Notifications Popover */}
-        <Popover>
+        <Popover onOpenChange={(open) => open && handleOpenNotifications()}>
           <PopoverTrigger asChild>
             <Button variant="ghost" size="icon" className="relative">
               <Bell className="h-5 w-5" />
-              <Badge 
-                variant="destructive" 
-                className="absolute -right-1 -top-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs"
-              >
-                {notifications.length}
-              </Badge>
+              {hasUnreadNotifications && (
+                <Badge 
+                  variant="destructive" 
+                  className="absolute -right-1 -top-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs"
+                >
+                  {notifications.length}
+                </Badge>
+              )}
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-80 bg-card z-50" align="end">
