@@ -21,15 +21,24 @@ const Auth = () => {
     setLoading(true);
     
     try {
-      // First, sign out any existing session
+      // Force complete session cleanup
       await supabase.auth.signOut();
       
-      // Create unique test user for each session with random UUID-like identifier
-      const uniqueId = `${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
+      // Clear all local storage to ensure clean state
+      localStorage.clear();
+      sessionStorage.clear();
+      
+      // Wait a bit to ensure cleanup
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Create unique test user with crypto-random identifier
+      const randomBytes = new Uint8Array(16);
+      crypto.getRandomValues(randomBytes);
+      const uniqueId = Array.from(randomBytes, byte => byte.toString(16).padStart(2, '0')).join('');
       const dummyEmail = `test-${uniqueId}@visionai.com`;
-      const dummyPassword = `test-${uniqueId}`;
+      const dummyPassword = `TestPass${uniqueId}!123`;
 
-      console.log("Creating test user:", dummyEmail);
+      console.log("🔐 Creating isolated test user:", dummyEmail);
 
       // Create new test user with auto-confirm enabled
       const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
@@ -38,13 +47,13 @@ const Auth = () => {
         options: {
           emailRedirectTo: `${window.location.origin}/`,
           data: {
-            full_name: `Test User ${Date.now()}`,
+            full_name: `Test User ${uniqueId.substring(0, 8)}`,
           },
         },
       });
 
       if (signUpError) {
-        console.error("SignUp error:", signUpError);
+        console.error("❌ SignUp error:", signUpError);
         throw signUpError;
       }
 
@@ -52,15 +61,21 @@ const Auth = () => {
         throw new Error("Failed to create test user");
       }
 
-      console.log("Test user created:", signUpData.user.id);
+      console.log("✅ Test user created successfully:", {
+        userId: signUpData.user.id,
+        email: signUpData.user.email
+      });
 
       toast({
         title: "Sessão de teste criada",
-        description: `Novo usuário de teste criado com ID único`,
+        description: `Usuário isolado criado: ${dummyEmail.substring(0, 20)}...`,
       });
+      
+      // Small delay to ensure session is established
+      await new Promise(resolve => setTimeout(resolve, 300));
       navigate("/");
     } catch (error: any) {
-      console.error("Test login error:", error);
+      console.error("❌ Test login error:", error);
       toast({
         variant: "destructive",
         title: "Erro ao criar sessão de teste",

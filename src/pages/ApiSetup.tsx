@@ -29,12 +29,15 @@ const ApiSetup = () => {
 
   const loadExistingKeys = async () => {
     if (!user) {
-      console.log("No user found, skipping key load");
+      console.warn('⚠️ No user found when loading keys');
       setLoading(false);
       return;
     }
 
-    console.log("Loading keys for user:", user.id);
+    console.log('🔍 Loading keys for user:', {
+      userId: user.id,
+      email: user.email
+    });
 
     try {
       const { data, error } = await supabase
@@ -45,14 +48,22 @@ const ApiSetup = () => {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('Error loading keys:', error);
+        console.error('❌ Error loading keys:', error);
         throw error;
       }
       
-      console.log("Loaded keys:", data?.length || 0);
+      console.log('✅ Keys loaded successfully:', {
+        count: data?.length || 0,
+        userId: user.id,
+        keys: data?.map(k => ({
+          id: k.id,
+          keyPreview: k.encrypted_key?.substring(0, 10)
+        }))
+      });
+      
       setExistingKeys(data || []);
     } catch (error) {
-      console.error('Error loading keys:', error);
+      console.error('❌ Error loading keys:', error);
       toast.error("Erro ao carregar chaves de API");
     } finally {
       setLoading(false);
