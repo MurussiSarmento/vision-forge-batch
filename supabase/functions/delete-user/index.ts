@@ -12,10 +12,21 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const supabaseClient = createClient(
+    // Verify the request is from an authenticated admin
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) {
+      throw new Error('Missing authorization header')
+    }
+
+    // Create client with anon key to verify the user's token
+    const token = authHeader.replace('Bearer ', '')
+    const supabaseAuth = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
       {
+        global: {
+          headers: { Authorization: authHeader }
+        },
         auth: {
           autoRefreshToken: false,
           persistSession: false
@@ -23,21 +34,14 @@ Deno.serve(async (req) => {
       }
     )
 
-    // Verify the request is from an authenticated admin
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      throw new Error('Missing authorization header')
-    }
-
-    const token = authHeader.replace('Bearer ', '')
-    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(token)
+    const { data: { user }, error: userError } = await supabaseAuth.auth.getUser()
     
     if (userError || !user) {
       throw new Error('Unauthorized')
     }
 
-    // Check if user is admin
-    const { data: roles, error: roleError } = await supabaseClient
+    // Check if user is admin using the authenticated client
+    const { data: roles, error: roleError } = await supabaseAuth
       .from('user_roles')
       .select('role')
       .eq('user_id', user.id)
@@ -47,6 +51,18 @@ Deno.serve(async (req) => {
     if (roleError || !roles) {
       throw new Error('User is not an admin')
     }
+
+    // Create service role client for admin operations
+    const supabaseAdmin = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      }
+    )
 
     const { userId } = await req.json()
 
@@ -62,7 +78,7 @@ Deno.serve(async (req) => {
     console.log('Deleting user:', userId)
 
     // Delete the user using admin API
-    const { error: deleteError } = await supabaseClient.auth.admin.deleteUser(userId)
+    const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(userId)
 
     if (deleteError) {
       console.error('Error deleting user:', deleteError)
