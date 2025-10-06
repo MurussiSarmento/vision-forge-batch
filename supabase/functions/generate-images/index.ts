@@ -95,8 +95,13 @@ serve(async (req) => {
       let failed = 0;
 
       for (const promptText of prompts) {
+        // Get current API key data for this prompt
+        const currentKeyData = apiKeys[keyIndex % apiKeys.length];
+        const keyPreview = currentKeyData.key_name || `Key ${(keyIndex % apiKeys.length) + 1}`;
+        
         try {
           console.log(`Processing prompt: ${promptText}`);
+          console.log(`Using API key: ${keyPreview} for prompt: "${promptText}"`);
           
           // Create prompt batch
           const { data: batch, error: batchError } = await supabaseClient
@@ -118,13 +123,6 @@ serve(async (req) => {
           }
 
           console.log(`Created batch ${batch.id}`);
-
-          // Generate variations
-          const currentKeyData = apiKeys[keyIndex % apiKeys.length];
-          const currentKey = currentKeyData.encrypted_key;
-          const keyPreview = currentKeyData.key_name || `Key ${(keyIndex % apiKeys.length) + 1}`;
-          
-          console.log(`Using API key: ${keyPreview} for prompt: "${promptText}"`);
           
           for (let i = 0; i < variationsCount; i++) {
             try {
