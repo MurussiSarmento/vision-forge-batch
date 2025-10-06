@@ -71,6 +71,8 @@ const AdminUsers = () => {
   const [newUserPassword, setNewUserPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [userSearchQuery, setUserSearchQuery] = useState("");
 
   const { data: profiles, isLoading } = useQuery({
     queryKey: ["admin-profiles"],
@@ -100,21 +102,53 @@ const AdminUsers = () => {
   });
 
   const { data: activityLogs, isLoading: isLoadingLogs } = useQuery({
-    queryKey: ["admin-activity-logs"],
+    queryKey: ["admin-activity-logs", selectedUserId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("admin_activity_logs")
         .select(`
           *,
-          profiles!admin_activity_logs_admin_user_id_fkey(email, full_name)
+          profiles!admin_activity_logs_admin_user_id_fkey(email, full_name),
+          target_profile:profiles!admin_activity_logs_target_user_id_fkey(email, full_name)
         `)
-        .order("created_at", { ascending: false })
-        .limit(100);
+        .order("created_at", { ascending: false });
 
+      if (selectedUserId) {
+        query = query.or(`target_user_id.eq.${selectedUserId},admin_user_id.eq.${selectedUserId}`);
+      }
+
+      query = query.limit(100);
+
+      const { data, error } = await query;
       if (error) throw error;
       return data as ActivityLog[];
     },
     enabled: userRole === "admin",
+  });
+
+  // Fetch detailed generation logs for selected user
+  const { data: generationLogs, isLoading: isLoadingGenLogs } = useQuery({
+    queryKey: ["generation-logs", selectedUserId],
+    queryFn: async () => {
+      if (!selectedUserId) return [];
+      
+      const { data, error } = await supabase
+        .from("generation_sessions")
+        .select(`
+          *,
+          prompt_batches(
+            *,
+            generation_results(*)
+          )
+        `)
+        .eq("user_id", selectedUserId)
+        .order("created_at", { ascending: false })
+        .limit(50);
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: userRole === "admin" && !!selectedUserId,
   });
 
   const { data: apiKeys, isLoading: isLoadingKeys } = useQuery({
@@ -789,47 +823,165 @@ const AdminUsers = () => {
                 <CardTitle>Logs de Atividade</CardTitle>
               </div>
               <CardDescription>
-                Histórico de ações administrativas no sistema
+                Histórico de ações administrativas e gerações de imagem
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {isLoadingLogs ? (
-                <div className="flex items-center justify-center p-8">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <div className="space-y-4">
+                {/* User Search/Filter */}
+                <div className="flex gap-4 items-end">
+                  <div className="flex-1">
+                    <Label htmlFor="user-search">Buscar por Usuário</Label>
+                    <Input
+                      id="user-search"
+                      placeholder="Digite o email do usuário..."
+                      value={userSearchQuery}
+                      onChange={(e) => setUserSearchQuery(e.target.value)}
+                    />
+                  </div>
+                  <Select value={selectedUserId || "all"} onValueChange={(value) => setSelectedUserId(value === "all" ? null : value)}>
+                    <SelectTrigger className="w-[300px]">
+                      <SelectValue placeholder="Selecione um usuário" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os usuários</SelectItem>
+                      {profiles
+                        ?.filter(p => !userSearchQuery || p.email?.toLowerCase().includes(userSearchQuery.toLowerCase()))
+                        ?.map((profile) => (
+                          <SelectItem key={profile.id} value={profile.id}>
+                            {profile.email} - {profile.full_name || "Sem nome"}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  {activityLogs?.map((log: any) => (
-                    <div
-                      key={log.id}
-                      className="flex items-start gap-4 p-4 rounded-lg border bg-card"
-                    >
-                      <Activity className="h-5 w-5 text-muted-foreground mt-0.5" />
-                      <div className="flex-1 space-y-1">
-                        <p className="text-sm font-medium">
-                          {log.action.replace(/_/g, " ")}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Administrador: {log.profiles?.email || "Desconhecido"}
-                        </p>
-                        {log.details && (
-                          <pre className="text-xs bg-muted p-2 rounded mt-2 overflow-auto">
-                            {JSON.stringify(log.details, null, 2)}
-                          </pre>
-                        )}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {new Date(log.created_at).toLocaleString("pt-BR")}
-                      </div>
+
+                {/* Activity Logs Section */}
+                <div className="space-y-2">
+                  <h3 className="text-lg font-semibold">Logs Administrativos</h3>
+                  {isLoadingLogs ? (
+                    <div className="flex items-center justify-center p-8">
+                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
                     </div>
-                  ))}
-                  {activityLogs?.length === 0 && (
-                    <p className="text-center text-muted-foreground py-8">
-                      Nenhuma atividade registrada
-                    </p>
+                  ) : (
+                    <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                      {activityLogs?.map((log: any) => (
+                        <div
+                          key={log.id}
+                          className="flex items-start gap-4 p-4 rounded-lg border bg-card"
+                        >
+                          <Activity className="h-5 w-5 text-muted-foreground mt-0.5" />
+                          <div className="flex-1 space-y-1">
+                            <p className="text-sm font-medium">
+                              {log.action.replace(/_/g, " ")}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Admin: {log.profiles?.email || "Desconhecido"}
+                              {log.target_profile && ` → Alvo: ${log.target_profile.email}`}
+                            </p>
+                            {log.details && (
+                              <pre className="text-xs bg-muted p-2 rounded mt-2 overflow-auto max-h-32">
+                                {JSON.stringify(log.details, null, 2)}
+                              </pre>
+                            )}
+                          </div>
+                          <div className="text-xs text-muted-foreground whitespace-nowrap">
+                            {new Date(log.created_at).toLocaleString("pt-BR")}
+                          </div>
+                        </div>
+                      ))}
+                      {activityLogs?.length === 0 && (
+                        <p className="text-center text-muted-foreground py-8">
+                          Nenhuma atividade registrada
+                        </p>
+                      )}
+                    </div>
                   )}
                 </div>
-              )}
+
+                {/* Generation Logs Section - Only show when user is selected */}
+                {selectedUserId && (
+                  <div className="space-y-2 mt-6">
+                    <h3 className="text-lg font-semibold">Logs de Geração de Imagens</h3>
+                    {isLoadingGenLogs ? (
+                      <div className="flex items-center justify-center p-8">
+                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                      </div>
+                    ) : (
+                      <div className="space-y-3 max-h-[500px] overflow-y-auto">
+                        {generationLogs?.map((session: any) => (
+                          <div
+                            key={session.id}
+                            className="p-4 rounded-lg border bg-card space-y-3"
+                          >
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <p className="text-sm font-medium">
+                                  Sessão: {session.id.slice(0, 8)}...
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  Status: <Badge variant={session.status === 'completed' ? 'default' : session.status === 'processing' ? 'secondary' : 'destructive'}>
+                                    {session.status}
+                                  </Badge>
+                                </p>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  Total: {session.total_prompts} | Concluídos: {session.completed_prompts} | Falhos: {session.failed_prompts}
+                                </p>
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {new Date(session.created_at).toLocaleString("pt-BR")}
+                              </div>
+                            </div>
+
+                            {/* Prompt Batches */}
+                            {session.prompt_batches?.map((batch: any) => (
+                              <div key={batch.id} className="ml-4 p-3 bg-muted rounded space-y-2">
+                                <div className="flex justify-between items-start">
+                                  <div className="flex-1">
+                                    <p className="text-xs font-medium">Prompt: {batch.prompt_text}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                      Status: {batch.status} | Variações: {batch.variations_count}
+                                    </p>
+                                    {batch.reference_image_url && (
+                                      <p className="text-xs text-muted-foreground">
+                                        Imagem ref: {batch.reference_image_url.slice(0, 50)}...
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Generation Results */}
+                                {batch.generation_results?.length > 0 && (
+                                  <div className="ml-2 space-y-1">
+                                    {batch.generation_results.map((result: any) => (
+                                      <div key={result.id} className="text-xs p-2 bg-background rounded">
+                                        <p>Variação {result.variation_number}: 
+                                          {result.metadata?.model && ` [${result.metadata.model}]`}
+                                          {result.is_selected && <Badge className="ml-2" variant="default">Selecionada</Badge>}
+                                        </p>
+                                        {result.metadata && (
+                                          <pre className="text-xs bg-muted p-1 rounded mt-1 overflow-auto max-h-20">
+                                            {JSON.stringify(result.metadata, null, 2)}
+                                          </pre>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        ))}
+                        {generationLogs?.length === 0 && (
+                          <p className="text-center text-muted-foreground py-8">
+                            Nenhum log de geração encontrado para este usuário
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

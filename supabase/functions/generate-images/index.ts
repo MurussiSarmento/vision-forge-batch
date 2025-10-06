@@ -125,100 +125,116 @@ serve(async (req) => {
           console.log(`Created batch ${batch.id}`);
           
           for (let i = 0; i < variationsCount; i++) {
-            try {
-              console.log(`Generating variation ${i + 1}/${variationsCount} with key: ${keyPreview}`);
-              
-              // Use Lovable AI Gateway with Gemini Nano Banana for image generation
-              let imageUrl = '';
-              
               try {
-                const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+                console.log(`Generating variation ${i + 1}/${variationsCount} with key: ${keyPreview}`);
                 
-                // Prepare message content with aspect ratio instruction
-                const aspectRatioInstruction = aspectRatio !== '1:1' ? ` Create the image in ${aspectRatio} aspect ratio.` : '';
-                const messageContent: any[] = [
-                  { 
-                    type: 'text', 
-                    text: referenceImageUrl 
-                      ? `Generate an image based on this reference image and prompt: ${promptText}${aspectRatioInstruction}`
-                      : `${promptText}${aspectRatioInstruction}`
-                  }
-                ];
+                // Use Lovable AI Gateway with Gemini Nano Banana for image generation
+                let imageUrl = '';
+                let generationError = null;
+                let aiResponseStatus = null;
+                const startTime = Date.now();
+                
+                try {
+                  const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+                  
+                  // Prepare message content with aspect ratio instruction
+                  const aspectRatioInstruction = aspectRatio !== '1:1' ? ` Create the image in ${aspectRatio} aspect ratio.` : '';
+                  const messageContent: any[] = [
+                    { 
+                      type: 'text', 
+                      text: referenceImageUrl 
+                        ? `Generate an image based on this reference image and prompt: ${promptText}${aspectRatioInstruction}`
+                        : `${promptText}${aspectRatioInstruction}`
+                    }
+                  ];
 
-                // Add reference image if provided
-                if (referenceImageUrl) {
-                  messageContent.push({
-                    type: 'image_url',
-                    image_url: {
-                      url: referenceImageUrl
+                  // Add reference image if provided
+                  if (referenceImageUrl) {
+                    messageContent.push({
+                      type: 'image_url',
+                      image_url: {
+                        url: referenceImageUrl
+                      }
+                    });
+                  }
+
+                  const aiResponse = await fetch(
+                    'https://ai.gateway.lovable.dev/v1/chat/completions',
+                    {
+                      method: 'POST',
+                      headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${LOVABLE_API_KEY}`
+                      },
+                      body: JSON.stringify({
+                        model: 'google/gemini-2.5-flash-image-preview',
+                        messages: [{
+                          role: 'user',
+                          content: messageContent
+                        }],
+                        modalities: ['image', 'text']
+                      })
+                    }
+                  );
+
+                  aiResponseStatus = aiResponse.status;
+
+                  if (aiResponse.ok) {
+                    const aiData = await aiResponse.json();
+                    console.log(`✅ Image generated successfully - Key: ${keyPreview}, Prompt: "${promptText}", Variation: ${i + 1}`);
+                    
+                    // Extract base64 image from response
+                    if (aiData.choices?.[0]?.message?.images?.[0]?.image_url?.url) {
+                      imageUrl = aiData.choices[0].message.images[0].image_url.url;
+                    }
+                  } else {
+                    const errorData = await aiResponse.json();
+                    generationError = errorData;
+                    console.error(`❌ AI generation failed - Key: ${keyPreview}, Error:`, aiResponse.status, errorData);
+                  }
+                } catch (aiError) {
+                  generationError = aiError instanceof Error ? aiError.message : String(aiError);
+                  console.warn('Failed to use Lovable AI:', aiError);
+                }
+
+                const generationTime = Date.now() - startTime;
+
+                // Fallback to placeholder if AI didn't work
+                if (!imageUrl) {
+                  console.log('Using placeholder image (AI generation failed)');
+                  imageUrl = `https://picsum.photos/seed/${batch.id}-${i}-${Date.now()}/800/600`;
+                }
+                
+                // Save result to database with detailed metadata
+                const { error: insertError } = await supabaseClient
+                  .from('generation_results')
+                  .insert({
+                    batch_id: batch.id,
+                    image_url: imageUrl,
+                    variation_number: i + 1,
+                    is_selected: false,
+                    metadata: { 
+                      prompt: promptText, 
+                      api_key_index: keyIndex % apiKeys.length,
+                      api_key_name: keyPreview,
+                      model: imageUrl.startsWith('data:') ? 'gemini-2.5-flash-image-preview' : 'placeholder',
+                      aspect_ratio: aspectRatio,
+                      reference_image: referenceImageUrl ? 'yes' : 'no',
+                      generation_time_ms: generationTime,
+                      ai_response_status: aiResponseStatus,
+                      error: generationError,
+                      timestamp: new Date().toISOString()
                     }
                   });
-                }
 
-                const aiResponse = await fetch(
-                  'https://ai.gateway.lovable.dev/v1/chat/completions',
-                  {
-                    method: 'POST',
-                    headers: { 
-                      'Content-Type': 'application/json',
-                      'Authorization': `Bearer ${LOVABLE_API_KEY}`
-                    },
-                    body: JSON.stringify({
-                      model: 'google/gemini-2.5-flash-image-preview',
-                      messages: [{
-                        role: 'user',
-                        content: messageContent
-                      }],
-                      modalities: ['image', 'text']
-                    })
-                  }
-                );
-
-                if (aiResponse.ok) {
-                  const aiData = await aiResponse.json();
-                  console.log(`✅ Image generated successfully - Key: ${keyPreview}, Prompt: "${promptText}", Variation: ${i + 1}`);
-                  
-                  // Extract base64 image from response
-                  if (aiData.choices?.[0]?.message?.images?.[0]?.image_url?.url) {
-                    imageUrl = aiData.choices[0].message.images[0].image_url.url;
-                  }
+                if (insertError) {
+                  console.error(`Database insert error for key ${keyPreview}:`, insertError);
                 } else {
-                  const errorData = await aiResponse.json();
-                  console.error(`❌ AI generation failed - Key: ${keyPreview}, Error:`, aiResponse.status, errorData);
+                  console.log(`✅ Variation ${i + 1}/${variationsCount} saved - Key: ${keyPreview}, Prompt: "${promptText}"`);
                 }
-              } catch (aiError) {
-                console.warn('Failed to use Lovable AI:', aiError);
+              } catch (error) {
+                console.error(`Failed to generate variation ${i + 1}:`, error);
               }
-
-              // Fallback to placeholder if AI didn't work
-              if (!imageUrl) {
-                console.log('Using placeholder image (AI generation failed)');
-                imageUrl = `https://picsum.photos/seed/${batch.id}-${i}-${Date.now()}/800/600`;
-              }
-              
-              // Save result to database
-              const { error: insertError } = await supabaseClient
-                .from('generation_results')
-                .insert({
-                  batch_id: batch.id,
-                  image_url: imageUrl,
-                  variation_number: i + 1,
-                  is_selected: false,
-                  metadata: { 
-                    prompt: promptText, 
-                    api_key_index: keyIndex % apiKeys.length,
-                    model: imageUrl.startsWith('data:') ? 'gemini-2.5-flash-image-preview' : 'placeholder'
-                  }
-                });
-
-              if (insertError) {
-                console.error(`Database insert error for key ${keyPreview}:`, insertError);
-              } else {
-                console.log(`✅ Variation ${i + 1}/${variationsCount} saved - Key: ${keyPreview}, Prompt: "${promptText}"`);
-              }
-            } catch (error) {
-              console.error(`Failed to generate variation ${i + 1}:`, error);
-            }
           }
 
           // Update batch status
