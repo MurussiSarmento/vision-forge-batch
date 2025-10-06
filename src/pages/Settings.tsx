@@ -20,6 +20,15 @@ const Settings = () => {
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!currentPassword) {
+      toast({
+        title: "Erro",
+        description: "Digite sua senha atual.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (newPassword !== confirmPassword) {
       toast({
         title: "Erro",
@@ -41,6 +50,17 @@ const Settings = () => {
     setIsChangingPassword(true);
 
     try {
+      // Primeiro, reautentica com a senha atual
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: user?.email || "",
+        password: currentPassword,
+      });
+
+      if (signInError) {
+        throw new Error("Senha atual incorreta.");
+      }
+
+      // Se autenticou corretamente, atualiza a senha
       const { error } = await supabase.auth.updateUser({
         password: newPassword,
       });
@@ -110,13 +130,25 @@ const Settings = () => {
         <CardContent>
           <form onSubmit={handlePasswordChange} className="space-y-4">
             <div className="space-y-2">
+              <Label htmlFor="current-password">Senha Atual</Label>
+              <Input
+                id="current-password"
+                type="password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                placeholder="Digite sua senha atual"
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="new-password">Nova Senha</Label>
               <Input
                 id="new-password"
                 type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="Digite sua nova senha"
+                placeholder="Digite sua nova senha (mínimo 6 caracteres)"
                 required
                 minLength={6}
               />
