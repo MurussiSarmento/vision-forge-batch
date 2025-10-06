@@ -130,14 +130,6 @@ serve(async (req) => {
             try {
               console.log(`Generating variation ${i + 1}/${variationsCount} with key: ${keyPreview}`);
               
-              // Update session progress in real-time
-              await supabaseClient
-                .from('generation_sessions')
-                .update({
-                  completed_prompts: completed,
-                })
-                .eq('id', session.id);
-              
               // Use Lovable AI Gateway with Gemini Nano Banana for image generation
               let imageUrl = '';
               
@@ -238,10 +230,18 @@ serve(async (req) => {
 
           console.log(`Batch ${batch.id} completed`);
           completed++;
+          
+          // Update session progress in real-time
+          await supabaseClient
+            .from('generation_sessions')
+            .update({
+              completed_prompts: completed,
+            })
+            .eq('id', session.id);
+          
           keyIndex++;
 
           // Update usage count for the API key
-          const currentKeyData = apiKeys[keyIndex % apiKeys.length];
           await supabaseClient
             .from('api_keys')
             .update({ 

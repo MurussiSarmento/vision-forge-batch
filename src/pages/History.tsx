@@ -117,7 +117,7 @@ const History = () => {
                       <p className="text-2xl font-bold text-primary">{totalImages}</p>
                     </div>
                     <div className="flex gap-2">
-                      <Link to={`/results?session=${session.id}`}>
+                      <Link to={`/results?sessionId=${session.id}`}>
                         <Button variant="outline">Ver Resultados</Button>
                       </Link>
                     </div>
