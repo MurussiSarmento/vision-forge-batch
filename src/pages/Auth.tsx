@@ -19,45 +19,37 @@ const Auth = () => {
 
   const handleDummyLogin = async () => {
     setLoading(true);
-    const dummyEmail = "test@visionai.com";
+    // Create unique test user for each session
+    const timestamp = Date.now();
+    const dummyEmail = `test-${timestamp}@visionai.com`;
     const dummyPassword = "test123";
 
     try {
-      // Try to sign in first
-      let { error } = await supabase.auth.signInWithPassword({
+      // Create new test user
+      const { error: signUpError } = await supabase.auth.signUp({
+        email: dummyEmail,
+        password: dummyPassword,
+        options: {
+          emailRedirectTo: `${window.location.origin}/`,
+          data: {
+            full_name: `Test User ${timestamp}`,
+          },
+        },
+      });
+
+      if (signUpError) throw signUpError;
+
+      // Sign in with the new user
+      const { error: signInError } = await supabase.auth.signInWithPassword({
         email: dummyEmail,
         password: dummyPassword,
       });
 
-      // If user doesn't exist, create it
-      if (error && error.message.includes("Invalid login credentials")) {
-        const { error: signUpError } = await supabase.auth.signUp({
-          email: dummyEmail,
-          password: dummyPassword,
-          options: {
-            emailRedirectTo: `${window.location.origin}/`,
-            data: {
-              full_name: "Test User",
-            },
-          },
-        });
-
-        if (signUpError) throw signUpError;
-
-        // Try to sign in again
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email: dummyEmail,
-          password: dummyPassword,
-        });
-
-        if (signInError) throw signInError;
-      } else if (error) {
-        throw error;
-      }
+      if (signInError) throw signInError;
 
       toast({
-        title: "Logged in as test user",
-        description: "Using dummy credentials for development",
+        title: "Sessão de teste criada",
+        description: "Usuário único criado para esta sessão",
       });
       navigate("/");
     } catch (error: any) {
