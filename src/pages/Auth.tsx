@@ -19,44 +19,52 @@ const Auth = () => {
 
   const handleDummyLogin = async () => {
     setLoading(true);
-    // Create unique test user for each session
-    const timestamp = Date.now();
-    const dummyEmail = `test-${timestamp}@visionai.com`;
-    const dummyPassword = "test123";
-
+    
     try {
-      // Create new test user
-      const { error: signUpError } = await supabase.auth.signUp({
+      // First, sign out any existing session
+      await supabase.auth.signOut();
+      
+      // Create unique test user for each session with random UUID-like identifier
+      const uniqueId = `${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
+      const dummyEmail = `test-${uniqueId}@visionai.com`;
+      const dummyPassword = `test-${uniqueId}`;
+
+      console.log("Creating test user:", dummyEmail);
+
+      // Create new test user with auto-confirm enabled
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email: dummyEmail,
         password: dummyPassword,
         options: {
           emailRedirectTo: `${window.location.origin}/`,
           data: {
-            full_name: `Test User ${timestamp}`,
+            full_name: `Test User ${Date.now()}`,
           },
         },
       });
 
-      if (signUpError) throw signUpError;
+      if (signUpError) {
+        console.error("SignUp error:", signUpError);
+        throw signUpError;
+      }
 
-      // Sign in with the new user
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: dummyEmail,
-        password: dummyPassword,
-      });
+      if (!signUpData.user) {
+        throw new Error("Failed to create test user");
+      }
 
-      if (signInError) throw signInError;
+      console.log("Test user created:", signUpData.user.id);
 
       toast({
         title: "Sessão de teste criada",
-        description: "Usuário único criado para esta sessão",
+        description: `Novo usuário de teste criado com ID único`,
       });
       navigate("/");
     } catch (error: any) {
+      console.error("Test login error:", error);
       toast({
         variant: "destructive",
-        title: "Error",
-        description: error.message || "An error occurred during authentication",
+        title: "Erro ao criar sessão de teste",
+        description: error.message || "Ocorreu um erro durante a autenticação",
       });
     } finally {
       setLoading(false);
