@@ -112,13 +112,6 @@ const Sidebar = ({ open, onClose }: SidebarProps) => {
           )}
         </nav>
 
-        <div className="border-t border-border p-4">
-          <div className="rounded-lg bg-gradient-glass p-4 backdrop-blur-sm">
-            <p className="text-xs font-medium text-foreground">API Credits</p>
-            <p className="mt-1 text-2xl font-bold text-primary">2,450</p>
-            <p className="mt-1 text-xs text-muted-foreground">requests remaining</p>
-          </div>
-        </div>
       </aside>
     </>
   );
