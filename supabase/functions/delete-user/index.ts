@@ -12,46 +12,6 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Verify the request is from an authenticated admin
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      throw new Error('Missing authorization header')
-    }
-
-    // Create client with anon key to verify the user's token
-    const token = authHeader.replace('Bearer ', '')
-    const supabaseAuth = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      {
-        global: {
-          headers: { Authorization: authHeader }
-        },
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false
-        }
-      }
-    )
-
-    const { data: { user }, error: userError } = await supabaseAuth.auth.getUser()
-    
-    if (userError || !user) {
-      throw new Error('Unauthorized')
-    }
-
-    // Check if user is admin using the authenticated client
-    const { data: roles, error: roleError } = await supabaseAuth
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', user.id)
-      .eq('role', 'admin')
-      .single()
-
-    if (roleError || !roles) {
-      throw new Error('User is not an admin')
-    }
-
     // Create service role client for admin operations
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -64,28 +24,60 @@ Deno.serve(async (req) => {
       }
     )
 
-    const { userId } = await req.json()
+    // Get authenticated user from JWT (already validated by verify_jwt=true)
+    const authHeader = req.headers.get('Authorization')!
+    const token = authHeader.replace('Bearer ', '')
+    
+    // Decode JWT to get user ID
+    const parts = token.split('.')
+    if (parts.length !== 3) {
+      throw new Error('Invalid token format')
+    }
+    
+    const payload = JSON.parse(atob(parts[1]))
+    const userId = payload.sub
 
     if (!userId) {
+      throw new Error('User ID not found in token')
+    }
+
+    console.log('Authenticated user:', userId)
+
+    // Check if user is admin
+    const { data: roles, error: roleError } = await supabaseAdmin
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', userId)
+      .eq('role', 'admin')
+      .single()
+
+    if (roleError || !roles) {
+      console.error('Admin check failed:', roleError)
+      throw new Error('User is not an admin')
+    }
+
+    const { userId: targetUserId } = await req.json()
+
+    if (!targetUserId) {
       throw new Error('User ID is required')
     }
 
     // Prevent admin from deleting themselves
-    if (userId === user.id) {
+    if (targetUserId === userId) {
       throw new Error('Cannot delete your own account')
     }
 
-    console.log('Deleting user:', userId)
+    console.log('Admin', userId, 'deleting user:', targetUserId)
 
     // Delete the user using admin API
-    const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(userId)
+    const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(targetUserId)
 
     if (deleteError) {
       console.error('Error deleting user:', deleteError)
       throw deleteError
     }
 
-    console.log('User deleted successfully:', userId)
+    console.log('User deleted successfully:', targetUserId)
 
     return new Response(
       JSON.stringify({ success: true, message: 'User deleted successfully' }),
