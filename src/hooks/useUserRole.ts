@@ -13,15 +13,16 @@ export const useUserRole = (userId: string | undefined) => {
         .from("user_roles")
         .select("role")
         .eq("user_id", userId)
-        .single();
+        .maybeSingle();
 
       if (error) {
         console.error("Error fetching user role:", error);
-        return null;
+        return "user" as UserRole; // Default to user on error
       }
 
-      return data?.role as UserRole;
+      return (data?.role as UserRole) || "user";
     },
     enabled: !!userId,
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
   });
 };
