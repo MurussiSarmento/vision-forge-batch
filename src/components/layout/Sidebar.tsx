@@ -23,10 +23,10 @@ const navigation = [
   { name: "Dashboard", href: "/", icon: Home },
   { name: "API Keys", href: "/api-setup", icon: Key },
   { name: "Batch Prompts", href: "/prompt-batch", icon: FileText },
-  { name: "Generation", href: "/generation", icon: Zap },
-  { name: "Results", href: "/results", icon: Images },
-  { name: "History", href: "/history", icon: History },
-  { name: "Settings", href: "/settings", icon: Settings },
+  { name: "Geração", href: "/generation", icon: Zap },
+  { name: "Resultados", href: "/results", icon: Images },
+  { name: "Histórico", href: "/history", icon: History },
+  { name: "Configurações", href: "/settings", icon: Settings },
 ];
 
 const Sidebar = ({ open, onClose }: SidebarProps) => {
