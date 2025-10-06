@@ -20,11 +20,14 @@ serve(async (req) => {
 
     const { data: { user } } = await supabaseClient.auth.getUser();
     if (!user) {
+      console.error('No authenticated user found');
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+    
+    console.log('Validating keys for user:', user.id, user.email);
 
     const { apiKeys } = await req.json();
 
@@ -74,22 +77,41 @@ serve(async (req) => {
 
     // Save valid keys to database
     const validKeys = results.filter(r => r.valid);
+    console.log(`Found ${validKeys.length} valid keys to save for user ${user.id}`);
+    
     if (validKeys.length > 0) {
+      // First, check if keys already exist for this user
+      const { data: existingKeys } = await supabaseClient
+        .from('api_keys')
+        .select('encrypted_key')
+        .eq('user_id', user.id);
+      
+      console.log(`User ${user.id} has ${existingKeys?.length || 0} existing keys`);
+      
+      const keysToInsert = validKeys.map((k, index) => ({
+        user_id: user.id,
+        key_name: `Key ${Date.now()}-${index}`,
+        encrypted_key: k.fullKey,
+        is_valid: true,
+        last_validated_at: new Date().toISOString()
+      }));
+      
+      console.log('Inserting keys:', keysToInsert.map(k => ({ 
+        user_id: k.user_id, 
+        key_preview: k.encrypted_key.substring(0, 10) 
+      })));
+
       const { error: dbError } = await supabaseClient
         .from('api_keys')
-        .upsert(
-          validKeys.map((k, index) => ({
-            user_id: user.id,
-            key_name: `Key ${index + 1}`,
-            encrypted_key: k.fullKey,
-            is_valid: true,
-            last_validated_at: new Date().toISOString()
-          })),
-          { onConflict: 'user_id,encrypted_key' }
-        );
+        .upsert(keysToInsert, { 
+          onConflict: 'user_id,encrypted_key',
+          ignoreDuplicates: false 
+        });
 
       if (dbError) {
-        console.error('Database error:', dbError);
+        console.error('Database error saving keys:', dbError);
+      } else {
+        console.log(`Successfully saved ${validKeys.length} keys for user ${user.id}`);
       }
     }
 
