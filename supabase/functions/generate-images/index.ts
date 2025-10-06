@@ -120,11 +120,23 @@ serve(async (req) => {
           console.log(`Created batch ${batch.id}`);
 
           // Generate variations
-          const currentKey = apiKeys[keyIndex % apiKeys.length].encrypted_key;
+          const currentKeyData = apiKeys[keyIndex % apiKeys.length];
+          const currentKey = currentKeyData.encrypted_key;
+          const keyPreview = currentKeyData.key_name || `Key ${(keyIndex % apiKeys.length) + 1}`;
+          
+          console.log(`Using API key: ${keyPreview} for prompt: "${promptText}"`);
           
           for (let i = 0; i < variationsCount; i++) {
             try {
-              console.log(`Generating variation ${i + 1}/${variationsCount}`);
+              console.log(`Generating variation ${i + 1}/${variationsCount} with key: ${keyPreview}`);
+              
+              // Update session progress in real-time
+              await supabaseClient
+                .from('generation_sessions')
+                .update({
+                  completed_prompts: completed,
+                })
+                .eq('id', session.id);
               
               // Use Lovable AI Gateway with Gemini Nano Banana for image generation
               let imageUrl = '';
@@ -173,16 +185,15 @@ serve(async (req) => {
 
                 if (aiResponse.ok) {
                   const aiData = await aiResponse.json();
-                  console.log('Lovable AI response received');
+                  console.log(`✅ Image generated successfully - Key: ${keyPreview}, Prompt: "${promptText}", Variation: ${i + 1}`);
                   
                   // Extract base64 image from response
                   if (aiData.choices?.[0]?.message?.images?.[0]?.image_url?.url) {
                     imageUrl = aiData.choices[0].message.images[0].image_url.url;
-                    console.log('Image generated successfully via Lovable AI');
                   }
                 } else {
                   const errorData = await aiResponse.json();
-                  console.warn('Lovable AI error:', aiResponse.status, errorData);
+                  console.error(`❌ AI generation failed - Key: ${keyPreview}, Error:`, aiResponse.status, errorData);
                 }
               } catch (aiError) {
                 console.warn('Failed to use Lovable AI:', aiError);
@@ -210,9 +221,9 @@ serve(async (req) => {
                 });
 
               if (insertError) {
-                console.error('Database insert error:', insertError);
+                console.error(`Database insert error for key ${keyPreview}:`, insertError);
               } else {
-                console.log(`Variation ${i + 1} saved successfully`);
+                console.log(`✅ Variation ${i + 1}/${variationsCount} saved - Key: ${keyPreview}, Prompt: "${promptText}"`);
               }
             } catch (error) {
               console.error(`Failed to generate variation ${i + 1}:`, error);
