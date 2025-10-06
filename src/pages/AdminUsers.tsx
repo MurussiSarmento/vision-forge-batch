@@ -8,12 +8,13 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Edit, UserX, UserCheck, Shield, Activity, UserPlus, Key, Eye, EyeOff } from "lucide-react";
+import { Loader2, Edit, UserX, UserCheck, Shield, Activity, UserPlus, Key, Eye, EyeOff, Trash2 } from "lucide-react";
 import { Navigate } from "react-router-dom";
 
 interface Profile {
@@ -349,6 +350,47 @@ const AdminUsers = () => {
     setVisibleKeys(newVisible);
   };
 
+  const deleteUserMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const { data, error } = await supabase.functions.invoke("delete-user", {
+        body: { userId },
+      });
+      
+      if (error) throw error;
+      if (data.error) throw new Error(data.error);
+      
+      await logActivity("DELETE_USER", userId, { deleted_at: new Date().toISOString() });
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-profiles"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-activity-logs"] });
+      toast({
+        title: "Usuário deletado",
+        description: "O usuário foi removido do sistema.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao deletar usuário",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleDeleteUser = (userId: string) => {
+    if (userId === user?.id) {
+      toast({
+        title: "Ação não permitida",
+        description: "Você não pode deletar sua própria conta.",
+        variant: "destructive",
+      });
+      return;
+    }
+    deleteUserMutation.mutate(userId);
+  };
+
   if (isLoadingRole) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -439,17 +481,18 @@ const AdminUsers = () => {
                           <TableCell>
                             {new Date(profile.created_at).toLocaleDateString("pt-BR")}
                           </TableCell>
-                          <TableCell className="text-right space-x-2">
-                            <Dialog open={isDialogOpen && editingUser?.id === profile.id} onOpenChange={setIsDialogOpen}>
-                              <DialogTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => handleEdit(profile)}
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                              </DialogTrigger>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <Dialog open={isDialogOpen && editingUser?.id === profile.id} onOpenChange={setIsDialogOpen}>
+                                <DialogTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleEdit(profile)}
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                </DialogTrigger>
                               <DialogContent>
                                 <DialogHeader>
                                   <DialogTitle>Editar Usuário</DialogTitle>
@@ -509,23 +552,54 @@ const AdminUsers = () => {
                               </DialogContent>
                             </Dialog>
 
-                            <Button
-                              variant={profile.status === "active" ? "destructive" : "default"}
-                              size="sm"
-                              onClick={() => handleToggleStatus(
-                                profile.id, 
-                                profile.status
-                              )}
-                              disabled={toggleStatusMutation.isPending}
-                            >
-                              {profile.status === "active" ? (
-                                <UserX className="h-4 w-4" />
-                              ) : profile.status === "pending" ? (
-                                <UserCheck className="h-4 w-4" />
-                              ) : (
-                                <UserCheck className="h-4 w-4" />
-                              )}
-                            </Button>
+                              <Button
+                                variant={profile.status === "active" ? "destructive" : "default"}
+                                size="sm"
+                                onClick={() => handleToggleStatus(
+                                  profile.id, 
+                                  profile.status
+                                )}
+                                disabled={toggleStatusMutation.isPending}
+                              >
+                                {profile.status === "active" ? (
+                                  <UserX className="h-4 w-4" />
+                                ) : profile.status === "pending" ? (
+                                  <UserCheck className="h-4 w-4" />
+                                ) : (
+                                  <UserCheck className="h-4 w-4" />
+                                )}
+                              </Button>
+
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    disabled={profile.id === user?.id || deleteUserMutation.isPending}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Tem certeza que deseja deletar o usuário <strong>{profile.email}</strong>? 
+                                      Esta ação não pode ser desfeita e removerá todos os dados associados ao usuário.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() => handleDeleteUser(profile.id)}
+                                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                    >
+                                      Deletar
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </div>
                           </TableCell>
                         </TableRow>
                       );
