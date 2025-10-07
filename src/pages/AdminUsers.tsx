@@ -74,6 +74,9 @@ const AdminUsers = () => {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [userSearchQuery, setUserSearchQuery] = useState("");
   const [genLink, setGenLink] = useState("");
+  const [characterGenLink, setCharacterGenLink] = useState("");
+  const [scenarioGenLink, setScenarioGenLink] = useState("");
+  const [videoPromptGenLink, setVideoPromptGenLink] = useState("");
 
   const { data: profiles, isLoading } = useQuery({
     queryKey: ["admin-profiles"],
@@ -175,13 +178,22 @@ const AdminUsers = () => {
       const { data, error } = await supabase
         .from("system_config")
         .select("*")
-        .eq("config_key", "gen_link")
-        .maybeSingle();
+        .in("config_key", ["gen_link", "character_gen_link", "scenario_gen_link", "video_prompt_gen_link"]);
 
       if (error) throw error;
-      if (data) {
-        setGenLink(data.config_value);
-      }
+      
+      data?.forEach((config) => {
+        if (config.config_key === "gen_link") {
+          setGenLink(config.config_value);
+        } else if (config.config_key === "character_gen_link") {
+          setCharacterGenLink(config.config_value);
+        } else if (config.config_key === "scenario_gen_link") {
+          setScenarioGenLink(config.config_value);
+        } else if (config.config_key === "video_prompt_gen_link") {
+          setVideoPromptGenLink(config.config_value);
+        }
+      });
+      
       return data;
     },
     enabled: userRole === "admin",
@@ -485,6 +497,49 @@ const AdminUsers = () => {
     },
   });
 
+  const updateConfigMutation = useMutation({
+    mutationFn: async (configs: { key: string; value: string; description: string }[]) => {
+      for (const config of configs) {
+        const { data: existing } = await supabase
+          .from("system_config")
+          .select("id")
+          .eq("config_key", config.key)
+          .maybeSingle();
+
+        if (existing) {
+          const { error } = await supabase
+            .from("system_config")
+            .update({ config_value: config.value })
+            .eq("config_key", config.key);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase
+            .from("system_config")
+            .insert({ 
+              config_key: config.key, 
+              config_value: config.value,
+              description: config.description
+            });
+          if (error) throw error;
+        }
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["system-config"] });
+      toast({
+        title: "Configurações salvas",
+        description: "As configurações foram atualizadas com sucesso.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao salvar configurações",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleSaveGenLink = () => {
     if (!genLink.trim()) {
       toast({
@@ -495,6 +550,27 @@ const AdminUsers = () => {
       return;
     }
     updateGenLinkMutation.mutate(genLink);
+  };
+
+  const handleSaveAllConfigs = () => {
+    const configs = [
+      { key: "gen_link", value: genLink, description: "Link do gerador de roteiros" },
+      { key: "character_gen_link", value: characterGenLink, description: "Link do gerador de personagens" },
+      { key: "scenario_gen_link", value: scenarioGenLink, description: "Link do gerador de cenários" },
+      { key: "video_prompt_gen_link", value: videoPromptGenLink, description: "Link do gerador de prompts de vídeo" },
+    ];
+
+    const hasEmptyField = configs.some(c => !c.value.trim());
+    if (hasEmptyField) {
+      toast({
+        title: "Campos obrigatórios",
+        description: "Por favor, preencha todos os campos de configuração.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    updateConfigMutation.mutate(configs);
   };
 
   if (isLoadingRole) {
@@ -1067,13 +1143,13 @@ const AdminUsers = () => {
                 <CardTitle>Configurações do Sistema</CardTitle>
               </div>
               <CardDescription>
-                Configure o link do gerador de roteiros (gen)
+                Configure os links dos geradores do sistema
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="max-w-2xl space-y-4">
+              <div className="max-w-2xl space-y-6">
                 <div className="space-y-2">
-                  <Label htmlFor="gen-link">Link do Gen</Label>
+                  <Label htmlFor="gen-link">Link do Gen (Roteiros)</Label>
                   <Input
                     id="gen-link"
                     type="url"
@@ -1082,20 +1158,63 @@ const AdminUsers = () => {
                     onChange={(e) => setGenLink(e.target.value)}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Este é o link do gerador que será usado para criar todos os roteiros do sistema
+                    Link do gerador que será usado para criar roteiros de vídeo
                   </p>
                 </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="character-gen-link">Link do Gen (Personagens)</Label>
+                  <Input
+                    id="character-gen-link"
+                    type="url"
+                    placeholder="https://exemplo.com/gen-personagens"
+                    value={characterGenLink}
+                    onChange={(e) => setCharacterGenLink(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Link do gerador para criar personagens/influencers do vídeo
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="scenario-gen-link">Link do Gen (Cenários)</Label>
+                  <Input
+                    id="scenario-gen-link"
+                    type="url"
+                    placeholder="https://exemplo.com/gen-cenarios"
+                    value={scenarioGenLink}
+                    onChange={(e) => setScenarioGenLink(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Link do gerador para criar cenários e ambientes
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="video-prompt-gen-link">Link do Gen (Prompts de Vídeo)</Label>
+                  <Input
+                    id="video-prompt-gen-link"
+                    type="url"
+                    placeholder="https://exemplo.com/gen-video-prompts"
+                    value={videoPromptGenLink}
+                    onChange={(e) => setVideoPromptGenLink(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Link do gerador para criar prompts de geração de vídeo
+                  </p>
+                </div>
+
                 <Button
-                  onClick={handleSaveGenLink}
-                  disabled={updateGenLinkMutation.isPending}
+                  onClick={handleSaveAllConfigs}
+                  disabled={updateConfigMutation.isPending}
                   className="w-full sm:w-auto"
                 >
-                  {updateGenLinkMutation.isPending ? (
+                  {updateConfigMutation.isPending ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : (
                     <Save className="mr-2 h-4 w-4" />
                   )}
-                  Salvar Configuração
+                  Salvar Todas as Configurações
                 </Button>
               </div>
             </CardContent>
