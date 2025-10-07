@@ -10,11 +10,12 @@ import { Loader2, Video } from "lucide-react";
 const VideoGeneration = () => {
   const [lyrics, setLyrics] = useState("");
   const [script, setScript] = useState("");
+  const [feedback, setFeedback] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
-  const [step, setStep] = useState<"input" | "review">("input");
+  const [step, setStep] = useState<"input" | "review" | "feedback">("input");
   const { toast } = useToast();
 
-  const handleGenerateScript = async () => {
+  const handleGenerateScript = async (improvementFeedback?: string) => {
     if (!lyrics.trim()) {
       toast({
         title: "Erro",
@@ -27,13 +28,18 @@ const VideoGeneration = () => {
     setIsGenerating(true);
     try {
       const { data, error } = await supabase.functions.invoke("generate-video-script", {
-        body: { lyrics },
+        body: { 
+          lyrics,
+          feedback: improvementFeedback,
+          previousScript: improvementFeedback ? script : undefined
+        },
       });
 
       if (error) throw error;
 
       setScript(data.script);
       setStep("review");
+      setFeedback("");
       toast({
         title: "Sucesso",
         description: "Roteiro gerado com sucesso!",
@@ -53,13 +59,31 @@ const VideoGeneration = () => {
   const handleApprove = () => {
     toast({
       title: "Roteiro aprovado",
-      description: "O roteiro foi aprovado e será processado.",
+      description: "Processando para próxima etapa...",
     });
-    // Future: Implement video generation logic here
+    // Future: Navigate to influencer generation screen
+  };
+
+  const handleReject = () => {
+    setStep("feedback");
+  };
+
+  const handleImprove = () => {
+    if (!feedback.trim()) {
+      toast({
+        title: "Erro",
+        description: "Por favor, forneça instruções para melhorar o roteiro",
+        variant: "destructive",
+      });
+      return;
+    }
+    handleGenerateScript(feedback);
   };
 
   const handleBack = () => {
     setStep("input");
+    setScript("");
+    setFeedback("");
   };
 
   return (
@@ -74,7 +98,7 @@ const VideoGeneration = () => {
         </p>
       </div>
 
-      {step === "input" ? (
+      {step === "input" && (
         <Card className="p-6">
           <div className="space-y-4">
             <div className="space-y-2">
@@ -88,7 +112,7 @@ const VideoGeneration = () => {
               />
             </div>
             <Button
-              onClick={handleGenerateScript}
+              onClick={() => handleGenerateScript()}
               disabled={isGenerating || !lyrics.trim()}
               className="w-full"
             >
@@ -103,7 +127,9 @@ const VideoGeneration = () => {
             </Button>
           </div>
         </Card>
-      ) : (
+      )}
+
+      {step === "review" && (
         <Card className="p-6">
           <div className="space-y-4">
             <div className="space-y-2">
@@ -113,11 +139,53 @@ const VideoGeneration = () => {
               </div>
             </div>
             <div className="flex gap-3">
-              <Button onClick={handleBack} variant="outline" className="flex-1">
-                Voltar
+              <Button onClick={handleReject} variant="outline" className="flex-1">
+                Reprovar
               </Button>
               <Button onClick={handleApprove} className="flex-1">
-                Aprovar Roteiro
+                Aprovar
+              </Button>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {step === "feedback" && (
+        <Card className="p-6">
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Roteiro Atual</Label>
+              <div className="bg-muted rounded-lg p-4 max-h-[200px] overflow-y-auto whitespace-pre-wrap text-sm">
+                {script}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="feedback">Instruções para Melhorar o Roteiro</Label>
+              <Textarea
+                id="feedback"
+                placeholder="Descreva o que gostaria de melhorar no roteiro..."
+                value={feedback}
+                onChange={(e) => setFeedback(e.target.value)}
+                className="min-h-[200px] resize-none"
+              />
+            </div>
+            <div className="flex gap-3">
+              <Button onClick={handleBack} variant="outline" className="flex-1">
+                Voltar ao Início
+              </Button>
+              <Button 
+                onClick={handleImprove} 
+                disabled={isGenerating || !feedback.trim()}
+                className="flex-1"
+              >
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Gerando Novo Roteiro...
+                  </>
+                ) : (
+                  "Gerar Novo Roteiro"
+                )}
               </Button>
             </div>
           </div>

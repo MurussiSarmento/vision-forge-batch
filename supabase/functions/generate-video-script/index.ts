@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { lyrics } = await req.json();
+    const { lyrics, feedback, previousScript } = await req.json();
 
     if (!lyrics) {
       throw new Error('Lyrics are required');
@@ -38,7 +38,9 @@ serve(async (req) => {
           },
           {
             role: 'user',
-            content: `Crie um roteiro de vídeo completo e detalhado para a seguinte letra de música:\n\n${lyrics}\n\nO roteiro deve incluir:\n- Introdução visual\n- Cenas principais sincronizadas com as partes da música\n- Transições entre cenas\n- Elementos visuais e estéticos\n- Conclusão impactante`
+            content: feedback && previousScript 
+              ? `Aqui está o roteiro anterior:\n\n${previousScript}\n\nO cliente pediu as seguintes melhorias:\n${feedback}\n\nPor favor, reescreva o roteiro completo incorporando essas melhorias para a letra:\n\n${lyrics}\n\nO roteiro deve incluir:\n- Introdução visual\n- Cenas principais sincronizadas com as partes da música\n- Transições entre cenas\n- Elementos visuais e estéticos\n- Conclusão impactante`
+              : `Crie um roteiro de vídeo completo e detalhado para a seguinte letra de música:\n\n${lyrics}\n\nO roteiro deve incluir:\n- Introdução visual\n- Cenas principais sincronizadas com as partes da música\n- Transições entre cenas\n- Elementos visuais e estéticos\n- Conclusão impactante`
           }
         ],
       }),
