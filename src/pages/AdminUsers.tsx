@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Edit, UserX, UserCheck, Shield, Activity, UserPlus, Key, Eye, EyeOff, Trash2 } from "lucide-react";
+import { Loader2, Edit, UserX, UserCheck, Shield, Activity, UserPlus, Key, Eye, EyeOff, Trash2, Settings as SettingsIcon, Save } from "lucide-react";
 import { Navigate } from "react-router-dom";
 
 interface Profile {
@@ -73,6 +73,7 @@ const AdminUsers = () => {
   const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [userSearchQuery, setUserSearchQuery] = useState("");
+  const [genLink, setGenLink] = useState("");
 
   const { data: profiles, isLoading } = useQuery({
     queryKey: ["admin-profiles"],
@@ -164,6 +165,24 @@ const AdminUsers = () => {
 
       if (error) throw error;
       return data as any[];
+    },
+    enabled: userRole === "admin",
+  });
+
+  const { data: systemConfig } = useQuery({
+    queryKey: ["system-config"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("system_config")
+        .select("*")
+        .eq("config_key", "gen_link")
+        .maybeSingle();
+
+      if (error) throw error;
+      if (data) {
+        setGenLink(data.config_value);
+      }
+      return data;
     },
     enabled: userRole === "admin",
   });
@@ -425,6 +444,59 @@ const AdminUsers = () => {
     deleteUserMutation.mutate(userId);
   };
 
+  const updateGenLinkMutation = useMutation({
+    mutationFn: async (link: string) => {
+      const { data: existing } = await supabase
+        .from("system_config")
+        .select("id")
+        .eq("config_key", "gen_link")
+        .maybeSingle();
+
+      if (existing) {
+        const { error } = await supabase
+          .from("system_config")
+          .update({ config_value: link })
+          .eq("config_key", "gen_link");
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("system_config")
+          .insert({ 
+            config_key: "gen_link", 
+            config_value: link,
+            description: "Link do gerador de roteiros"
+          });
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["system-config"] });
+      toast({
+        title: "Configuração salva",
+        description: "O link do gen foi atualizado com sucesso.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao salvar configuração",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSaveGenLink = () => {
+    if (!genLink.trim()) {
+      toast({
+        title: "Campo obrigatório",
+        description: "Por favor, insira o link do gen.",
+        variant: "destructive",
+      });
+      return;
+    }
+    updateGenLinkMutation.mutate(genLink);
+  };
+
   if (isLoadingRole) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -452,6 +524,7 @@ const AdminUsers = () => {
           <TabsTrigger value="create">Criar Usuário</TabsTrigger>
           <TabsTrigger value="keys">API Keys</TabsTrigger>
           <TabsTrigger value="activity">Logs</TabsTrigger>
+          <TabsTrigger value="config">Configurações</TabsTrigger>
         </TabsList>
 
         <TabsContent value="users">
@@ -981,6 +1054,49 @@ const AdminUsers = () => {
                     )}
                   </div>
                 )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="config">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <SettingsIcon className="h-5 w-5 text-primary" />
+                <CardTitle>Configurações do Sistema</CardTitle>
+              </div>
+              <CardDescription>
+                Configure o link do gerador de roteiros (gen)
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="max-w-2xl space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="gen-link">Link do Gen</Label>
+                  <Input
+                    id="gen-link"
+                    type="url"
+                    placeholder="https://exemplo.com/gen"
+                    value={genLink}
+                    onChange={(e) => setGenLink(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Este é o link do gerador que será usado para criar todos os roteiros do sistema
+                  </p>
+                </div>
+                <Button
+                  onClick={handleSaveGenLink}
+                  disabled={updateGenLinkMutation.isPending}
+                  className="w-full sm:w-auto"
+                >
+                  {updateGenLinkMutation.isPending ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="mr-2 h-4 w-4" />
+                  )}
+                  Salvar Configuração
+                </Button>
               </div>
             </CardContent>
           </Card>
