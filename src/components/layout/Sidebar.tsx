@@ -12,6 +12,7 @@ import {
   Settings,
   User,
   Users,
+  Video,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -22,6 +23,7 @@ interface SidebarProps {
 const navigation = [
   { name: "Dashboard", href: "/", icon: Home },
   { name: "API Keys", href: "/api-setup", icon: Key },
+  { name: "Gerar Vídeo Completo", href: "/video-generation", icon: Video },
   { name: "Batch Prompts", href: "/prompt-batch", icon: FileText },
   { name: "Geração", href: "/generation", icon: Zap },
   { name: "Resultados", href: "/results", icon: Images },

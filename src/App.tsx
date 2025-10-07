@@ -8,6 +8,7 @@ import { ProtectedRoute } from "./components/ProtectedRoute";
 import AppLayout from "./components/layout/AppLayout";
 import Dashboard from "./pages/Dashboard";
 import ApiSetup from "./pages/ApiSetup";
+import VideoGeneration from "./pages/VideoGeneration";
 import PromptBatch from "./pages/PromptBatch";
 import Generation from "./pages/Generation";
 import Results from "./pages/Results";
@@ -34,6 +35,7 @@ const App = () => (
             <Route path="/" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
               <Route index element={<Dashboard />} />
               <Route path="api-setup" element={<ApiSetup />} />
+              <Route path="video-generation" element={<VideoGeneration />} />
               <Route path="prompt-batch" element={<PromptBatch />} />
               <Route path="generation" element={<Generation />} />
               <Route path="results" element={<Results />} />

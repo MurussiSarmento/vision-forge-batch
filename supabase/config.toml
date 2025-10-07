@@ -11,3 +11,6 @@ verify_jwt = true
 
 [functions.delete-user]
 verify_jwt = true
+
+[functions.generate-video-script]
+verify_jwt = true
