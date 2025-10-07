@@ -5,14 +5,26 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Video } from "lucide-react";
+import { Loader2, Video, Check } from "lucide-react";
+
+type Character = {
+  name: string;
+  description: string;
+  role: string;
+  images: Array<{ url: string; variation: number }>;
+};
+
+type Step = "input" | "review" | "feedback" | "character-generation" | "character-review" | "character-feedback";
 
 const VideoGeneration = () => {
   const [lyrics, setLyrics] = useState("");
   const [script, setScript] = useState("");
   const [feedback, setFeedback] = useState("");
+  const [characters, setCharacters] = useState<Character[]>([]);
+  const [characterFeedback, setCharacterFeedback] = useState("");
+  const [selectedImages, setSelectedImages] = useState<Record<string, number>>({});
   const [isGenerating, setIsGenerating] = useState(false);
-  const [step, setStep] = useState<"input" | "review" | "feedback">("input");
+  const [step, setStep] = useState<Step>("input");
   const { toast } = useToast();
 
   const handleGenerateScript = async (improvementFeedback?: string) => {
@@ -56,12 +68,41 @@ const VideoGeneration = () => {
     }
   };
 
-  const handleApprove = () => {
-    toast({
-      title: "Roteiro aprovado",
-      description: "Processando para próxima etapa...",
-    });
-    // Future: Navigate to influencer generation screen
+  const handleApprove = async () => {
+    setIsGenerating(true);
+    setStep("character-generation");
+    
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-characters", {
+        body: { script },
+      });
+
+      if (error) throw error;
+
+      setCharacters(data.characters);
+      // Initialize selected images (default to first variation)
+      const initialSelection: Record<string, number> = {};
+      data.characters.forEach((char: Character) => {
+        initialSelection[char.name] = 1;
+      });
+      setSelectedImages(initialSelection);
+      
+      setStep("character-review");
+      toast({
+        title: "Sucesso",
+        description: "Personagens gerados com sucesso!",
+      });
+    } catch (error) {
+      console.error("Error generating characters:", error);
+      toast({
+        title: "Erro",
+        description: "Falha ao gerar personagens. Tente novamente.",
+        variant: "destructive",
+      });
+      setStep("review");
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const handleReject = () => {
@@ -84,6 +125,75 @@ const VideoGeneration = () => {
     setStep("input");
     setScript("");
     setFeedback("");
+    setCharacters([]);
+    setCharacterFeedback("");
+    setSelectedImages({});
+  };
+
+  const handleApproveCharacters = () => {
+    toast({
+      title: "Personagens aprovados",
+      description: "Processando para geração de cenários...",
+    });
+    // Future: Navigate to scenario generation
+  };
+
+  const handleRejectCharacters = () => {
+    setStep("character-feedback");
+  };
+
+  const handleImproveCharacters = async () => {
+    if (!characterFeedback.trim()) {
+      toast({
+        title: "Erro",
+        description: "Por favor, forneça instruções para melhorar os personagens",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsGenerating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-characters", {
+        body: { 
+          script,
+          feedback: characterFeedback,
+          previousCharacters: characters
+        },
+      });
+
+      if (error) throw error;
+
+      setCharacters(data.characters);
+      const initialSelection: Record<string, number> = {};
+      data.characters.forEach((char: Character) => {
+        initialSelection[char.name] = 1;
+      });
+      setSelectedImages(initialSelection);
+      
+      setStep("character-review");
+      setCharacterFeedback("");
+      toast({
+        title: "Sucesso",
+        description: "Personagens regenerados com sucesso!",
+      });
+    } catch (error) {
+      console.error("Error regenerating characters:", error);
+      toast({
+        title: "Erro",
+        description: "Falha ao regenerar personagens. Tente novamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const toggleImageSelection = (characterName: string, variation: number) => {
+    setSelectedImages(prev => ({
+      ...prev,
+      [characterName]: variation
+    }));
   };
 
   return (
@@ -185,6 +295,122 @@ const VideoGeneration = () => {
                   </>
                 ) : (
                   "Gerar Novo Roteiro"
+                )}
+              </Button>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {step === "character-generation" && (
+        <Card className="p-6">
+          <div className="flex flex-col items-center justify-center py-12 space-y-4">
+            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            <p className="text-lg font-medium">Gerando personagens...</p>
+            <p className="text-sm text-muted-foreground">Isso pode levar alguns instantes</p>
+          </div>
+        </Card>
+      )}
+
+      {step === "character-review" && (
+        <div className="space-y-6">
+          <Card className="p-6">
+            <h2 className="text-xl font-semibold mb-4">Personagens Gerados</h2>
+            <p className="text-sm text-muted-foreground mb-6">
+              Selecione a melhor imagem para cada personagem (3 variações disponíveis)
+            </p>
+            
+            <div className="space-y-8">
+              {characters.map((character) => (
+                <div key={character.name} className="space-y-4">
+                  <div>
+                    <h3 className="text-lg font-medium">{character.name}</h3>
+                    <p className="text-sm text-muted-foreground">{character.role}</p>
+                    <p className="text-sm mt-1">{character.description}</p>
+                  </div>
+                  
+                  <div className="grid grid-cols-3 gap-4">
+                    {character.images.map((image) => (
+                      <div
+                        key={image.variation}
+                        className={`relative cursor-pointer rounded-lg overflow-hidden border-2 transition-all ${
+                          selectedImages[character.name] === image.variation
+                            ? "border-primary ring-2 ring-primary"
+                            : "border-border hover:border-primary/50"
+                        }`}
+                        onClick={() => toggleImageSelection(character.name, image.variation)}
+                      >
+                        <img
+                          src={image.url}
+                          alt={`${character.name} - Variação ${image.variation}`}
+                          className="w-full h-48 object-cover"
+                        />
+                        {selectedImages[character.name] === image.variation && (
+                          <div className="absolute top-2 right-2 bg-primary rounded-full p-1">
+                            <Check className="h-4 w-4 text-primary-foreground" />
+                          </div>
+                        )}
+                        <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs py-1 px-2 text-center">
+                          Variação {image.variation}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          <div className="flex gap-3">
+            <Button onClick={handleRejectCharacters} variant="outline" className="flex-1">
+              Reprovar
+            </Button>
+            <Button onClick={handleApproveCharacters} className="flex-1">
+              Aprovar Personagens
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {step === "character-feedback" && (
+        <Card className="p-6">
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Personagens Atuais</Label>
+              <div className="bg-muted rounded-lg p-4 max-h-[200px] overflow-y-auto text-sm space-y-2">
+                {characters.map((char) => (
+                  <div key={char.name}>
+                    <strong>{char.name}</strong> - {char.role}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="characterFeedback">Instruções para Melhorar os Personagens</Label>
+              <Textarea
+                id="characterFeedback"
+                placeholder="Descreva o que gostaria de melhorar nos personagens ou imagens..."
+                value={characterFeedback}
+                onChange={(e) => setCharacterFeedback(e.target.value)}
+                className="min-h-[200px] resize-none"
+              />
+            </div>
+            <div className="flex gap-3">
+              <Button onClick={handleBack} variant="outline" className="flex-1">
+                Voltar ao Início
+              </Button>
+              <Button 
+                onClick={handleImproveCharacters} 
+                disabled={isGenerating || !characterFeedback.trim()}
+                className="flex-1"
+              >
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Gerando Novos Personagens...
+                  </>
+                ) : (
+                  "Gerar Novos Personagens"
                 )}
               </Button>
             </div>
