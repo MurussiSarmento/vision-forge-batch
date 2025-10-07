@@ -5,13 +5,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Video, Check } from "lucide-react";
+import { Loader2, Video, Check, X, EyeOff } from "lucide-react";
 
 type Character = {
   name: string;
   description: string;
   role: string;
   images: Array<{ url: string; variation: number }>;
+  status?: "approved" | "rejected" | "ignored";
 };
 
 type Step = "input" | "review" | "feedback" | "character-generation" | "character-review" | "character-feedback";
@@ -79,7 +80,11 @@ const VideoGeneration = () => {
 
       if (error) throw error;
 
-      setCharacters(data.characters);
+      const charactersWithStatus = data.characters.map((char: Character) => ({
+        ...char,
+        status: "approved" as const
+      }));
+      setCharacters(charactersWithStatus);
       // Initialize selected images (default to first variation)
       const initialSelection: Record<string, number> = {};
       data.characters.forEach((char: Character) => {
@@ -131,14 +136,32 @@ const VideoGeneration = () => {
   };
 
   const handleApproveCharacters = () => {
+    const approvedCharacters = characters.filter(char => char.status === "approved");
     toast({
       title: "Personagens aprovados",
-      description: "Processando para geração de cenários...",
+      description: `${approvedCharacters.length} personagens aprovados. Processando para geração de cenários...`,
     });
     // Future: Navigate to scenario generation
   };
 
+  const handleCharacterStatusChange = (characterName: string, status: "approved" | "rejected" | "ignored") => {
+    setCharacters(prev => 
+      prev.map(char => 
+        char.name === characterName ? { ...char, status } : char
+      )
+    );
+  };
+
   const handleRejectCharacters = () => {
+    const rejectedCharacters = characters.filter(char => char.status === "rejected");
+    if (rejectedCharacters.length === 0) {
+      toast({
+        title: "Atenção",
+        description: "Nenhum personagem foi rejeitado",
+        variant: "destructive",
+      });
+      return;
+    }
     setStep("character-feedback");
   };
 
@@ -164,7 +187,11 @@ const VideoGeneration = () => {
 
       if (error) throw error;
 
-      setCharacters(data.characters);
+      const charactersWithStatus = data.characters.map((char: Character) => ({
+        ...char,
+        status: "approved" as const
+      }));
+      setCharacters(charactersWithStatus);
       const initialSelection: Record<string, number> = {};
       data.characters.forEach((char: Character) => {
         initialSelection[char.name] = 1;
@@ -317,35 +344,75 @@ const VideoGeneration = () => {
           <Card className="p-6">
             <h2 className="text-xl font-semibold mb-4">Personagens Gerados</h2>
             <p className="text-sm text-muted-foreground mb-6">
-              Selecione a melhor imagem para cada personagem (3 variações disponíveis)
+              Para cada personagem: selecione a melhor imagem, rejeite ou ignore
             </p>
             
             <div className="space-y-8">
               {characters.map((character) => (
                 <div key={character.name} className="space-y-4">
-                  <div>
-                    <h3 className="text-lg font-medium">{character.name}</h3>
-                    <p className="text-sm text-muted-foreground">{character.role}</p>
-                    <p className="text-sm mt-1">{character.description}</p>
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <h3 className="text-lg font-medium">{character.name}</h3>
+                      <p className="text-sm text-muted-foreground">{character.role}</p>
+                      <p className="text-sm mt-1">{character.description}</p>
+                    </div>
+                    <div className="flex gap-2 ml-4">
+                      <Button
+                        size="sm"
+                        variant={character.status === "rejected" ? "destructive" : "outline"}
+                        onClick={() => handleCharacterStatusChange(character.name, "rejected")}
+                      >
+                        <X className="h-4 w-4 mr-1" />
+                        Rejeitar
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant={character.status === "ignored" ? "secondary" : "outline"}
+                        onClick={() => handleCharacterStatusChange(character.name, "ignored")}
+                      >
+                        <EyeOff className="h-4 w-4 mr-1" />
+                        Ignorar
+                      </Button>
+                      {(character.status === "rejected" || character.status === "ignored") && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleCharacterStatusChange(character.name, "approved")}
+                        >
+                          <Check className="h-4 w-4 mr-1" />
+                          Aprovar
+                        </Button>
+                      )}
+                    </div>
                   </div>
                   
-                  <div className="grid grid-cols-3 gap-4">
+                  <div 
+                    className={`grid grid-cols-3 gap-4 transition-opacity ${
+                      character.status === "rejected" || character.status === "ignored" 
+                        ? "opacity-50" 
+                        : ""
+                    }`}
+                  >
                     {character.images.map((image) => (
                       <div
                         key={image.variation}
                         className={`relative cursor-pointer rounded-lg overflow-hidden border-2 transition-all ${
-                          selectedImages[character.name] === image.variation
+                          character.status === "approved" && selectedImages[character.name] === image.variation
                             ? "border-primary ring-2 ring-primary"
                             : "border-border hover:border-primary/50"
                         }`}
-                        onClick={() => toggleImageSelection(character.name, image.variation)}
+                        onClick={() => {
+                          if (character.status === "approved") {
+                            toggleImageSelection(character.name, image.variation);
+                          }
+                        }}
                       >
                         <img
                           src={image.url}
                           alt={`${character.name} - Variação ${image.variation}`}
                           className="w-full h-48 object-cover"
                         />
-                        {selectedImages[character.name] === image.variation && (
+                        {character.status === "approved" && selectedImages[character.name] === image.variation && (
                           <div className="absolute top-2 right-2 bg-primary rounded-full p-1">
                             <Check className="h-4 w-4 text-primary-foreground" />
                           </div>
@@ -356,17 +423,41 @@ const VideoGeneration = () => {
                       </div>
                     ))}
                   </div>
+
+                  {character.status === "rejected" && (
+                    <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3">
+                      <p className="text-sm text-destructive font-medium">
+                        Este personagem será regenerado com base no seu feedback
+                      </p>
+                    </div>
+                  )}
+                  {character.status === "ignored" && (
+                    <div className="bg-muted border border-border rounded-lg p-3">
+                      <p className="text-sm text-muted-foreground">
+                        Este personagem não será usado nas cenas
+                      </p>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
           </Card>
 
           <div className="flex gap-3">
-            <Button onClick={handleRejectCharacters} variant="outline" className="flex-1">
-              Reprovar
+            <Button 
+              onClick={handleRejectCharacters} 
+              variant="outline" 
+              className="flex-1"
+              disabled={!characters.some(char => char.status === "rejected")}
+            >
+              Regenerar Personagens Rejeitados
             </Button>
-            <Button onClick={handleApproveCharacters} className="flex-1">
-              Aprovar Personagens
+            <Button 
+              onClick={handleApproveCharacters} 
+              className="flex-1"
+              disabled={characters.some(char => char.status === "rejected")}
+            >
+              Aprovar e Continuar ({characters.filter(c => c.status === "approved").length} personagens)
             </Button>
           </div>
         </div>
@@ -376,20 +467,26 @@ const VideoGeneration = () => {
         <Card className="p-6">
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Personagens Atuais</Label>
-              <div className="bg-muted rounded-lg p-4 max-h-[200px] overflow-y-auto text-sm space-y-2">
-                {characters.map((char) => (
-                  <div key={char.name}>
-                    <strong>{char.name}</strong> - {char.role}
-                  </div>
-                ))}
+              <Label>Personagens Rejeitados</Label>
+              <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 max-h-[200px] overflow-y-auto text-sm space-y-2">
+                {characters
+                  .filter(char => char.status === "rejected")
+                  .map((char) => (
+                    <div key={char.name} className="flex items-start gap-2">
+                      <X className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" />
+                      <div>
+                        <strong>{char.name}</strong> - {char.role}
+                        <p className="text-xs text-muted-foreground mt-1">{char.description}</p>
+                      </div>
+                    </div>
+                  ))}
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="characterFeedback">Instruções para Melhorar os Personagens</Label>
+              <Label htmlFor="characterFeedback">Instruções para Melhorar os Personagens Rejeitados</Label>
               <Textarea
                 id="characterFeedback"
-                placeholder="Descreva o que gostaria de melhorar nos personagens ou imagens..."
+                placeholder="Descreva especificamente o que gostaria de melhorar nos personagens rejeitados..."
                 value={characterFeedback}
                 onChange={(e) => setCharacterFeedback(e.target.value)}
                 className="min-h-[200px] resize-none"
@@ -407,10 +504,10 @@ const VideoGeneration = () => {
                 {isGenerating ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Gerando Novos Personagens...
+                    Regenerando Personagens...
                   </>
                 ) : (
-                  "Gerar Novos Personagens"
+                  "Regenerar Personagens Rejeitados"
                 )}
               </Button>
             </div>
