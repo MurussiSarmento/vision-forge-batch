@@ -84,62 +84,90 @@ serve(async (req) => {
         const images = [];
         
         for (let i = 0; i < 3; i++) {
-          try {
-            console.log(`[${character.name}] Generating variation ${i + 1}/3`);
-            console.log(`[${character.name}] Prompt: ${character.description.substring(0, 150)}...`);
-            
-            const startTime = Date.now();
-            
-            // Use Lovable AI Gateway with Gemini for image generation
-            const aiResponse = await fetch(
-              'https://ai.gateway.lovable.dev/v1/chat/completions',
-              {
-                method: 'POST',
-                headers: { 
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${LOVABLE_API_KEY}`
-                },
-                body: JSON.stringify({
-                  model: 'google/gemini-2.5-flash-image-preview',
-                  messages: [{
-                    role: 'user',
-                    content: [{ 
-                      type: 'text', 
-                      text: character.description
-                    }]
-                  }],
-                  modalities: ['image', 'text']
-                })
-              }
-            );
+          let attempts = 0;
+          const maxAttempts = 3;
+          let success = false;
 
-            const generationTime = Date.now() - startTime;
-            console.log(`[${character.name}] Response status for variation ${i + 1}: ${aiResponse.status} (${generationTime}ms)`);
-
-            if (aiResponse.ok) {
-              const aiData = await aiResponse.json();
+          while (attempts < maxAttempts && !success) {
+            attempts++;
+            try {
+              console.log(`[${character.name}] Generating variation ${i + 1}/3 (attempt ${attempts}/${maxAttempts})`);
               
-              // Extract base64 image from response
-              if (aiData.choices?.[0]?.message?.images?.[0]?.image_url?.url) {
-                const imageUrl = aiData.choices[0].message.images[0].image_url.url;
-                images.push({
-                  url: imageUrl,
-                  variation: i + 1
-                });
-                console.log(`[${character.name}] ✓ Successfully generated variation ${i + 1}`);
+              const startTime = Date.now();
+              
+              // Enhanced prompt for 9:16 format and full body visibility
+              const enhancedPrompt = `${character.description}
+
+IMPORTANTE: Gere uma imagem no formato vertical 9:16 (portrait). O personagem deve aparecer COMPLETO na imagem, mostrando toda a cabeça, corpo, braços e até os pés. Enquadramento de corpo inteiro (full body shot). A imagem deve ter espaço adequado acima da cabeça e abaixo dos pés.`;
+              
+              // Use Lovable AI Gateway with Gemini for image generation
+              const aiResponse = await fetch(
+                'https://ai.gateway.lovable.dev/v1/chat/completions',
+                {
+                  method: 'POST',
+                  headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${LOVABLE_API_KEY}`
+                  },
+                  body: JSON.stringify({
+                    model: 'google/gemini-2.5-flash-image-preview',
+                    messages: [{
+                      role: 'user',
+                      content: [{ 
+                        type: 'text', 
+                        text: enhancedPrompt
+                      }]
+                    }],
+                    modalities: ['image', 'text']
+                  })
+                }
+              );
+
+              const generationTime = Date.now() - startTime;
+              console.log(`[${character.name}] Response status for variation ${i + 1} (attempt ${attempts}): ${aiResponse.status} (${generationTime}ms)`);
+
+              if (aiResponse.ok) {
+                const aiData = await aiResponse.json();
+                
+                // Extract base64 image from response
+                if (aiData.choices?.[0]?.message?.images?.[0]?.image_url?.url) {
+                  const imageUrl = aiData.choices[0].message.images[0].image_url.url;
+                  images.push({
+                    url: imageUrl,
+                    variation: i + 1
+                  });
+                  console.log(`[${character.name}] ✓ Successfully generated variation ${i + 1} on attempt ${attempts}`);
+                  success = true;
+                } else {
+                  console.error(`[${character.name}] ✗ No image URL in response (attempt ${attempts})`);
+                  if (attempts < maxAttempts) {
+                    console.log(`[${character.name}] Retrying in 2 seconds...`);
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                  }
+                }
               } else {
-                console.error(`[${character.name}] ✗ No image URL in response`);
+                const errorData = await aiResponse.json();
+                console.error(`[${character.name}] ✗ AI API error ${aiResponse.status} (attempt ${attempts}):`, errorData);
+                if (attempts < maxAttempts) {
+                  console.log(`[${character.name}] Retrying in 2 seconds...`);
+                  await new Promise(resolve => setTimeout(resolve, 2000));
+                }
               }
-            } else {
-              const errorData = await aiResponse.json();
-              console.error(`[${character.name}] ✗ AI API error ${aiResponse.status}:`, errorData);
+            } catch (error) {
+              console.error(`[${character.name}] ✗ Exception for variation ${i + 1} (attempt ${attempts}):`, error instanceof Error ? error.message : error);
+              if (attempts < maxAttempts) {
+                console.log(`[${character.name}] Retrying in 2 seconds...`);
+                await new Promise(resolve => setTimeout(resolve, 2000));
+              }
             }
-          } catch (error) {
-            console.error(`[${character.name}] ✗ Exception for variation ${i + 1}:`, error instanceof Error ? error.message : error);
+          }
+
+          if (!success) {
+            console.error(`[${character.name}] ⚠️ FAILED to generate variation ${i + 1} after ${maxAttempts} attempts`);
           }
           
-          // Small delay between requests
-          if (i < 2) {
+          // Small delay between successful generations
+          if (success && i < 2) {
             await new Promise(resolve => setTimeout(resolve, 1000));
           }
         }
