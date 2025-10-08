@@ -95,22 +95,19 @@ serve(async (req) => {
               
               const startTime = Date.now();
               
-              // Enhanced prompt for 9:16 format and full body visibility
-              const enhancedPrompt = `Crie uma imagem em formato VERTICAL (portrait 9:16 - mais alto que largo).
+              // Enhanced prompt for full body visibility
+              const enhancedPrompt = `${character.description}
 
-DESCRIÇÃO DO PERSONAGEM: ${character.description}
-
-REQUISITOS OBRIGATÓRIOS DA IMAGEM:
-- Formato: VERTICAL 9:16 (portrait orientation - altura muito maior que largura)
-- Enquadramento: Corpo INTEIRO e COMPLETO do personagem
+REQUISITOS IMPORTANTES:
+- Enquadramento: Corpo INTEIRO e COMPLETO do personagem (full body shot)
 - Deve mostrar: cabeça completa (com espaço acima), tronco, braços completos, pernas completas e pés (com espaço abaixo)
-- O personagem deve estar centralizado verticalmente
+- O personagem deve estar centralizado na imagem
 - Deixe margens adequadas acima da cabeça e abaixo dos pés
-- A imagem deve ser vertical, não horizontal ou quadrada
 
-ATENÇÃO: Se o personagem não aparecer COMPLETO (faltando cabeça, braços ou pés), a imagem está ERRADA.`;
+Se o personagem não aparecer COMPLETO (faltando cabeça, braços ou pés), a imagem está incorreta.`;
               
               // Use Lovable AI Gateway with Gemini for image generation
+              // Force 9:16 aspect ratio using generationConfig
               const aiResponse = await fetch(
                 'https://ai.gateway.lovable.dev/v1/chat/completions',
                 {
@@ -128,7 +125,12 @@ ATENÇÃO: Se o personagem não aparecer COMPLETO (faltando cabeça, braços ou 
                         text: enhancedPrompt
                       }]
                     }],
-                    modalities: ['image', 'text']
+                    modalities: ['image', 'text'],
+                    generationConfig: {
+                      imageConfig: {
+                        aspectRatio: "9:16"
+                      }
+                    }
                   })
                 }
               );
