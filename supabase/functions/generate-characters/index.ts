@@ -96,9 +96,19 @@ serve(async (req) => {
               const startTime = Date.now();
               
               // Enhanced prompt for 9:16 format and full body visibility
-              const enhancedPrompt = `${character.description}
+              const enhancedPrompt = `Crie uma imagem em formato VERTICAL (portrait 9:16 - mais alto que largo).
 
-IMPORTANTE: Gere uma imagem no formato vertical 9:16 (portrait). O personagem deve aparecer COMPLETO na imagem, mostrando toda a cabeça, corpo, braços e até os pés. Enquadramento de corpo inteiro (full body shot). A imagem deve ter espaço adequado acima da cabeça e abaixo dos pés.`;
+DESCRIÇÃO DO PERSONAGEM: ${character.description}
+
+REQUISITOS OBRIGATÓRIOS DA IMAGEM:
+- Formato: VERTICAL 9:16 (portrait orientation - altura muito maior que largura)
+- Enquadramento: Corpo INTEIRO e COMPLETO do personagem
+- Deve mostrar: cabeça completa (com espaço acima), tronco, braços completos, pernas completas e pés (com espaço abaixo)
+- O personagem deve estar centralizado verticalmente
+- Deixe margens adequadas acima da cabeça e abaixo dos pés
+- A imagem deve ser vertical, não horizontal ou quadrada
+
+ATENÇÃO: Se o personagem não aparecer COMPLETO (faltando cabeça, braços ou pés), a imagem está ERRADA.`;
               
               // Use Lovable AI Gateway with Gemini for image generation
               const aiResponse = await fetch(
