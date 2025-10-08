@@ -486,11 +486,12 @@ const VideoGeneration = () => {
                       {character.images.map((image) => (
                         <div
                           key={image.variation}
-                          className={`relative cursor-pointer rounded-lg overflow-hidden border-2 transition-all aspect-[9/16] ${
+                          className={`relative cursor-pointer rounded-lg overflow-hidden border-2 transition-all ${
                             character.status === "approved" && selectedImages[character.name] === image.variation
                               ? "border-primary ring-2 ring-primary"
                               : "border-border hover:border-primary/50"
                           }`}
+                          style={{ aspectRatio: '9/16', minHeight: '400px' }}
                           onClick={() => {
                             if (character.status === "approved") {
                               toggleImageSelection(character.name, image.variation);
@@ -500,7 +501,7 @@ const VideoGeneration = () => {
                           <img
                             src={image.url}
                             alt={`${character.name} - Variação ${image.variation}`}
-                            className="w-full h-full object-contain bg-muted"
+                            className="w-full h-full object-cover"
                           />
                           {character.status === "approved" && selectedImages[character.name] === image.variation && (
                             <div className="absolute top-2 right-2 bg-primary rounded-full p-1">
