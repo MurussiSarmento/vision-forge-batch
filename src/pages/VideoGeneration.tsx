@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, Video, Check, X, EyeOff } from "lucide-react";
@@ -26,6 +27,8 @@ const VideoGeneration = () => {
   const [selectedImages, setSelectedImages] = useState<Record<string, number>>({});
   const [isGenerating, setIsGenerating] = useState(false);
   const [step, setStep] = useState<Step>("input");
+  const [generationProgress, setGenerationProgress] = useState({ current: 0, total: 0, estimatedTime: 0 });
+  const [startTime, setStartTime] = useState<number>(0);
   const { toast } = useToast();
 
   const handleGenerateScript = async (improvementFeedback?: string) => {
@@ -72,6 +75,7 @@ const VideoGeneration = () => {
   const handleApprove = async () => {
     setIsGenerating(true);
     setStep("character-generation");
+    setStartTime(Date.now());
     
     try {
       const { data, error } = await supabase.functions.invoke("generate-characters", {
@@ -80,10 +84,39 @@ const VideoGeneration = () => {
 
       if (error) throw error;
 
+      // Calculate total images to generate
+      const totalImages = data.characters.length * 3;
+      setGenerationProgress({ current: 0, total: totalImages, estimatedTime: totalImages * 4 });
+      
+      // Simulate progress updates (in a real scenario, this would come from the backend via realtime)
+      let currentProgress = 0;
+      const progressInterval = setInterval(() => {
+        currentProgress += 1;
+        const elapsed = (Date.now() - startTime) / 1000;
+        const avgTimePerImage = elapsed / currentProgress;
+        const remainingImages = totalImages - currentProgress;
+        const estimatedTime = Math.ceil(remainingImages * avgTimePerImage);
+        
+        setGenerationProgress({ 
+          current: currentProgress, 
+          total: totalImages,
+          estimatedTime 
+        });
+        
+        if (currentProgress >= totalImages) {
+          clearInterval(progressInterval);
+        }
+      }, 4000); // Update every 4 seconds (approximate time per image)
+
       const charactersWithStatus = data.characters.map((char: Character) => ({
         ...char,
         status: "approved" as const
       }));
+      
+      // Wait for all images to be "generated" (simulation)
+      await new Promise(resolve => setTimeout(resolve, totalImages * 4000));
+      clearInterval(progressInterval);
+      
       setCharacters(charactersWithStatus);
       // Initialize selected images (default to first variation)
       const initialSelection: Record<string, number> = {};
@@ -176,6 +209,9 @@ const VideoGeneration = () => {
     }
 
     setIsGenerating(true);
+    setStep("character-generation");
+    setStartTime(Date.now());
+    
     try {
       const { data, error } = await supabase.functions.invoke("generate-characters", {
         body: { 
@@ -187,10 +223,39 @@ const VideoGeneration = () => {
 
       if (error) throw error;
 
+      // Calculate total images to generate
+      const totalImages = data.characters.length * 3;
+      setGenerationProgress({ current: 0, total: totalImages, estimatedTime: totalImages * 4 });
+      
+      // Simulate progress updates
+      let currentProgress = 0;
+      const progressInterval = setInterval(() => {
+        currentProgress += 1;
+        const elapsed = (Date.now() - startTime) / 1000;
+        const avgTimePerImage = elapsed / currentProgress;
+        const remainingImages = totalImages - currentProgress;
+        const estimatedTime = Math.ceil(remainingImages * avgTimePerImage);
+        
+        setGenerationProgress({ 
+          current: currentProgress, 
+          total: totalImages,
+          estimatedTime 
+        });
+        
+        if (currentProgress >= totalImages) {
+          clearInterval(progressInterval);
+        }
+      }, 4000);
+
       const charactersWithStatus = data.characters.map((char: Character) => ({
         ...char,
         status: "approved" as const
       }));
+      
+      // Wait for all images to be "generated"
+      await new Promise(resolve => setTimeout(resolve, totalImages * 4000));
+      clearInterval(progressInterval);
+      
       setCharacters(charactersWithStatus);
       const initialSelection: Record<string, number> = {};
       data.characters.forEach((char: Character) => {
@@ -331,10 +396,34 @@ const VideoGeneration = () => {
 
       {step === "character-generation" && (
         <Card className="p-6">
-          <div className="flex flex-col items-center justify-center py-12 space-y-4">
-            <Loader2 className="h-12 w-12 animate-spin text-primary" />
-            <p className="text-lg font-medium">Gerando personagens...</p>
-            <p className="text-sm text-muted-foreground">Isso pode levar alguns instantes</p>
+          <div className="space-y-6 py-8">
+            <div className="flex flex-col items-center justify-center space-y-4">
+              <Loader2 className="h-12 w-12 animate-spin text-primary" />
+              <p className="text-lg font-medium">Gerando personagens...</p>
+              <p className="text-sm text-muted-foreground">Criando {generationProgress.total > 0 ? generationProgress.total : ''} imagens de personagens</p>
+            </div>
+            
+            {generationProgress.total > 0 && (
+              <div className="space-y-3 max-w-md mx-auto">
+                <div className="flex justify-between text-sm">
+                  <span className="font-medium">Progresso</span>
+                  <span className="text-muted-foreground">
+                    {generationProgress.current} / {generationProgress.total} imagens
+                  </span>
+                </div>
+                <Progress value={(generationProgress.current / generationProgress.total) * 100} className="h-2" />
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">
+                    {Math.round((generationProgress.current / generationProgress.total) * 100)}% completo
+                  </span>
+                  {generationProgress.estimatedTime > 0 && (
+                    <span className="text-muted-foreground">
+                      ~{generationProgress.estimatedTime}s restantes
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </Card>
       )}
