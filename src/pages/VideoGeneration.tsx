@@ -477,7 +477,7 @@ const VideoGeneration = () => {
                   
                   {character.images && character.images.length > 0 ? (
                     <div 
-                      className={`grid grid-cols-3 gap-4 transition-opacity ${
+                      className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 transition-opacity ${
                         character.status === "rejected" || character.status === "ignored" 
                           ? "opacity-50" 
                           : ""
@@ -486,7 +486,7 @@ const VideoGeneration = () => {
                       {character.images.map((image) => (
                         <div
                           key={image.variation}
-                          className={`relative cursor-pointer rounded-lg overflow-hidden border-2 transition-all ${
+                          className={`relative cursor-pointer rounded-lg overflow-hidden border-2 transition-all aspect-[9/16] ${
                             character.status === "approved" && selectedImages[character.name] === image.variation
                               ? "border-primary ring-2 ring-primary"
                               : "border-border hover:border-primary/50"
@@ -500,7 +500,7 @@ const VideoGeneration = () => {
                           <img
                             src={image.url}
                             alt={`${character.name} - Variação ${image.variation}`}
-                            className="w-full h-48 object-cover"
+                            className="w-full h-full object-contain bg-muted"
                           />
                           {character.status === "approved" && selectedImages[character.name] === image.variation && (
                             <div className="absolute top-2 right-2 bg-primary rounded-full p-1">
