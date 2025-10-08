@@ -91,33 +91,101 @@ serve(async (req) => {
     console.log('Characters extracted:', charactersData);
 
     // Now generate 3 images for each character using the character gen link
+    console.log('Starting image generation for characters...');
+    console.log('Character Gen Link:', characterGenLink);
+    console.log('Total characters to process:', charactersData.characters.length);
+    
+    // Helper function with timeout
+    const fetchWithTimeout = async (url: string, options: any, timeout = 60000) => {
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(), timeout);
+      
+      try {
+        const response = await fetch(url, {
+          ...options,
+          signal: controller.signal
+        });
+        clearTimeout(id);
+        return response;
+      } catch (error) {
+        clearTimeout(id);
+        throw error;
+      }
+    };
+    
     const charactersWithImages = await Promise.all(
       charactersData.characters.map(async (character: any) => {
+        console.log(`\n=== Processing character: ${character.name} ===`);
         const images = [];
         
         for (let i = 0; i < 3; i++) {
           try {
-            const imageResponse = await fetch(characterGenLink, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
+            console.log(`[${character.name}] Calling image gen API - variation ${i + 1}/3`);
+            console.log(`[${character.name}] Prompt (first 150 chars): ${character.description.substring(0, 150)}...`);
+            
+            const imageResponse = await fetchWithTimeout(
+              characterGenLink,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  prompt: character.description,
+                  variation: i + 1
+                }),
               },
-              body: JSON.stringify({
-                prompt: character.description,
-                variation: i + 1
-              }),
-            });
+              60000 // 60 second timeout
+            );
+
+            console.log(`[${character.name}] Response status for variation ${i + 1}: ${imageResponse.status}`);
 
             if (imageResponse.ok) {
               const imageData = await imageResponse.json();
-              images.push({
-                url: imageData.image_url || imageData.url,
-                variation: i + 1
-              });
+              console.log(`[${character.name}] Response data keys:`, Object.keys(imageData));
+              
+              // Try multiple possible keys for the image URL
+              const imageUrl = imageData.image_url || 
+                              imageData.url || 
+                              imageData.image || 
+                              imageData.imageUrl ||
+                              (imageData.data && imageData.data.url);
+              
+              if (imageUrl) {
+                images.push({
+                  url: imageUrl,
+                  variation: i + 1
+                });
+                console.log(`[${character.name}] ✓ Successfully added variation ${i + 1}`);
+              } else {
+                console.error(`[${character.name}] ✗ No valid image URL in response. Full response:`, JSON.stringify(imageData));
+              }
+            } else {
+              const errorText = await imageResponse.text();
+              console.error(`[${character.name}] ✗ API error ${imageResponse.status}: ${errorText.substring(0, 200)}`);
             }
           } catch (error) {
-            console.error(`Error generating image ${i + 1} for ${character.name}:`, error);
+            if (error instanceof Error) {
+              if (error.name === 'AbortError') {
+                console.error(`[${character.name}] ✗ Timeout after 60s for variation ${i + 1}`);
+              } else {
+                console.error(`[${character.name}] ✗ Exception for variation ${i + 1}:`, error.message);
+              }
+            } else {
+              console.error(`[${character.name}] ✗ Unknown error for variation ${i + 1}:`, error);
+            }
           }
+          
+          // Small delay between requests to avoid rate limiting
+          if (i < 2) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+        }
+
+        console.log(`[${character.name}] Summary: ${images.length}/3 images generated`);
+        
+        if (images.length === 0) {
+          console.error(`[${character.name}] ⚠️ WARNING: NO IMAGES GENERATED!`);
         }
 
         return {
@@ -126,6 +194,16 @@ serve(async (req) => {
         };
       })
     );
+
+    console.log('\n=== IMAGE GENERATION COMPLETE ===');
+    console.log('Final summary:');
+    charactersWithImages.forEach(char => {
+      console.log(`  - ${char.name}: ${char.images.length}/3 images`);
+    });
+    
+    const totalImages = charactersWithImages.reduce((sum, char) => sum + char.images.length, 0);
+    const maxPossibleImages = charactersData.characters.length * 3;
+    console.log(`Total: ${totalImages}/${maxPossibleImages} images generated`);
 
     return new Response(
       JSON.stringify({ characters: charactersWithImages }),

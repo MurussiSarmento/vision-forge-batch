@@ -386,43 +386,54 @@ const VideoGeneration = () => {
                     </div>
                   </div>
                   
-                  <div 
-                    className={`grid grid-cols-3 gap-4 transition-opacity ${
-                      character.status === "rejected" || character.status === "ignored" 
-                        ? "opacity-50" 
-                        : ""
-                    }`}
-                  >
-                    {character.images.map((image) => (
-                      <div
-                        key={image.variation}
-                        className={`relative cursor-pointer rounded-lg overflow-hidden border-2 transition-all ${
-                          character.status === "approved" && selectedImages[character.name] === image.variation
-                            ? "border-primary ring-2 ring-primary"
-                            : "border-border hover:border-primary/50"
-                        }`}
-                        onClick={() => {
-                          if (character.status === "approved") {
-                            toggleImageSelection(character.name, image.variation);
-                          }
-                        }}
-                      >
-                        <img
-                          src={image.url}
-                          alt={`${character.name} - Variação ${image.variation}`}
-                          className="w-full h-48 object-cover"
-                        />
-                        {character.status === "approved" && selectedImages[character.name] === image.variation && (
-                          <div className="absolute top-2 right-2 bg-primary rounded-full p-1">
-                            <Check className="h-4 w-4 text-primary-foreground" />
+                  {character.images && character.images.length > 0 ? (
+                    <div 
+                      className={`grid grid-cols-3 gap-4 transition-opacity ${
+                        character.status === "rejected" || character.status === "ignored" 
+                          ? "opacity-50" 
+                          : ""
+                      }`}
+                    >
+                      {character.images.map((image) => (
+                        <div
+                          key={image.variation}
+                          className={`relative cursor-pointer rounded-lg overflow-hidden border-2 transition-all ${
+                            character.status === "approved" && selectedImages[character.name] === image.variation
+                              ? "border-primary ring-2 ring-primary"
+                              : "border-border hover:border-primary/50"
+                          }`}
+                          onClick={() => {
+                            if (character.status === "approved") {
+                              toggleImageSelection(character.name, image.variation);
+                            }
+                          }}
+                        >
+                          <img
+                            src={image.url}
+                            alt={`${character.name} - Variação ${image.variation}`}
+                            className="w-full h-48 object-cover"
+                          />
+                          {character.status === "approved" && selectedImages[character.name] === image.variation && (
+                            <div className="absolute top-2 right-2 bg-primary rounded-full p-1">
+                              <Check className="h-4 w-4 text-primary-foreground" />
+                            </div>
+                          )}
+                          <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs py-1 px-2 text-center">
+                            Variação {image.variation}
                           </div>
-                        )}
-                        <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs py-1 px-2 text-center">
-                          Variação {image.variation}
                         </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-6 text-center">
+                      <p className="text-destructive font-medium mb-2">
+                        ⚠️ Nenhuma imagem foi gerada para este personagem
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Verifique se o Link do Gen (Personagens) está configurado corretamente nas configurações do admin.
+                      </p>
+                    </div>
+                  )}
 
                   {character.status === "rejected" && (
                     <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3">
